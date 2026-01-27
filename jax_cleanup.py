@@ -22,6 +22,7 @@ random_number = np.random.randint(0, 9999)
 print("random_number:", random_number)
 rng = jax.random.PRNGKey(random_number)
 # rng = jax.random.key(random_number)
+rng, reset_rng = jax.random.split(rng)
 env = make('clean_up',
         num_inner_steps=NUM_INNER_STEPS,
         num_outer_steps=NUM_OUTER_STEPS,
@@ -38,7 +39,6 @@ env = make('clean_up',
         inequity_aversion_target_agents=INEQUITY_AVERSION_TARGET_AGENTS
     )
 print("Environment loaded.")
-rng, _rng = jax.random.split(rng)
 
 
 run = wandb.init(
@@ -56,37 +56,6 @@ print(f"agent observation space: {agent_obs_space}")
 print(f"obs shape: {obs_shape}")
 
 
-# if ALGO_NAME == "PPO":
-#     print("Initializing PPO Agent...")
-#     ppo_agent = BasicPPO(
-#         NUM_AGENTS=NUM_AGENTS,
-#         action_space=env.action_space(0),
-#         obs_space=agent_obs_space,
-#         hyperparams=ppo_hyperparams
-#     )
-#     rng, _rng = jax.random.split(rng)
-#     ppo_state = ppo_agent.init(_rng)
-#     print("PPO Agent initialized.")
-# elif ALGO_NAME == "IPPO":
-#     print("Initializing IPPO Agent...")
-#     ippo_agent = IPPO_CNN_Agent(
-#         NUM_AGENTS=NUM_AGENTS,
-#         action_space=env.action_space(0),
-#         obs_space=agent_obs_space,
-#         hyperparams=ppo_hyperparams
-#     )
-#     rng, _rng = jax.random.split(rng)
-#     ippo_state = ippo_agent.init(_rng)
-#     print("IPPO Agent initialized.")
-# elif ALGO_NAME == "MAPPO":
-#     print("Initializing MAPPO Agent...")
-#     mappo_agent = MAPPOActor()
-#     # MAPPOCritic()
-#     # rng, _rng = jax.random.split(rng)
-#     mappo_state = mappo_agent.init(rng)
-#     print("MAPPO Agent initialized.")
-
-
 root_dir = SAVE_DIR
 path = Path(root_dir + "/state_pics")
 path.mkdir(parents=True, exist_ok=True)
@@ -99,21 +68,8 @@ cumulative_total_reward = 0.0
 
 print("Starting JAX-native training...")
 
-rng, train_rng = jax.random.split(rng)
-
-# train_out = train_jax(
-#     rng=train_rng,
-#     env=env,
-#     config=config,
-#     algo=ALGO_NAME   # "MAPPO" | "IPPO" | "PPO"
-# )
-
-
-# --- initialize ---
-rng, reset_rng = jax.random.split(rng)
 obs, env_state = env.reset(reset_rng)
-print(f"Observation after reset: {obs}")
-# TODO: actor and critic state initialization based on algo
+# print(f"Observation after reset: {obs}")
 actor_state, critic_state = [None, None]
 step = 0
 
@@ -163,7 +119,7 @@ print("Training finished.")
 
 
 #PUT INSIDE LOOP ALSO
-# # Save final checkpoint explicitly (optional)
+# # Save final checkpoint explicitly
 save_checkpoint(params, SAVE_DIR, step="final")
 
 # Evaluate

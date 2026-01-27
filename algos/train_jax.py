@@ -7,7 +7,7 @@ from algos.mappo_ippo_basic import *
 # from algos.mappo_cnn_cleanup import *
 from algos.ppo_utils import compute_gae, ppo_loss
 from utils import *
-from checkpoint import save_checkpoint, load_checkpoint
+# from checkpoint import save_checkpoint, load_checkpoint
 from typing import NamedTuple
 import numpy as np
 from PIL import Image
