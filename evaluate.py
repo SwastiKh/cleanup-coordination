@@ -6,7 +6,7 @@ from PIL import Image
 import wandb
 
 from algos.mappo_ippo_basic import MAPPOActor
-from utils import ENCODER
+from utils import *
 
 
 
@@ -103,24 +103,27 @@ def evaluate_policy(
         if done["__all__"]:
             break
 
-    # Save GIF
     gif_path = os.path.join(save_dir, str(current_step), "evaluation.gif")
-    frames_pil = [Image.fromarray(f) for f in frames]
-    frames_pil[0].save(
-        gif_path,
-        save_all=True,
-        append_images=frames_pil[1:],
-        duration=150,
-        loop=0,
-    )
+    if SAVE_GIF and current_step % SAVE_GIF_INTERVAL == 0:
+        # Save GIF
+        frames_pil = [Image.fromarray(f) for f in frames]
+        frames_pil[0].save(
+            gif_path,
+            save_all=True,
+            append_images=frames_pil[1:],
+            duration=150,
+            loop=0,
+        )
+        print(f"[Evaluation] GIF saved to {gif_path}")
 
-    print(f"[Evaluation] GIF saved to {gif_path}")
+
     print(f"[Evaluation] Episode return per agent: {episode_return}")
 
     if log_wandb:
         wandb.log({
             "eval/episode_return_mean": episode_return.mean().item(),
-            "eval/episode_return_agent0": episode_return[0].item(),
+            # "eval/episode_return_agent0": episode_return[0].item(),
+            **{f"agent_{i}_episode_return": episode_return[i].item() for i in range(num_agents)}
             # "eval/gif": wandb.Video(gif_path, format="gif"),
         })
 

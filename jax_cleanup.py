@@ -1,3 +1,4 @@
+from ctypes import Array
 import jax
 import jax.numpy as jnp
 from PIL import Image
@@ -40,13 +41,17 @@ env = make('clean_up',
     )
 print("Environment loaded.")
 
+# print(f"env config: {env.config}")
+# print(f"env : {env.observation_space}")
 
-run = wandb.init(
-    entity="swasti",
-    project="mthesis",
-    name=SAVE_DIR,
-    config=config,
-)
+
+if LOG_WANDB:
+    run = wandb.init(
+        entity="swasti",
+        project="mthesis",
+        name=SAVE_DIR,
+        config=config,
+    )
 
 
 print(f"env observation space: {env.observation_space()}")
@@ -69,10 +74,11 @@ cumulative_total_reward = 0.0
 print("Starting JAX-native training...")
 
 obs, env_state = env.reset(reset_rng)
-# print(f"Observation after reset: {obs}")
+print(f"obs type after reset: {type(obs)}")
+print(f"obs shape after reset: {obs.shape}")
 actor_state, critic_state = [None, None]
 step = 0
-
+# print(f"env_state after reset: {env_state}")
 
 while step < NUM_OUTER_STEPS:
     print(f"\n=== Training steps {step} → {step + EVAL_INTERVAL} ===")
@@ -85,8 +91,8 @@ while step < NUM_OUTER_STEPS:
         critic_state=critic_state,
         obs=obs,
         env_state=env_state,
-        start_step=step,
-        num_steps=EVAL_INTERVAL,   # <- NEW
+        start_step=step, # unused currently
+        num_steps=EVAL_INTERVAL,  
     )
 
     # --- unpack ---
@@ -102,7 +108,8 @@ while step < NUM_OUTER_STEPS:
 
     params = train_out["params"]
     metrics = train_out["metrics"]
-    save_checkpoint(params, SAVE_DIR, step=str(step)) # save every 10-20k steps or so
+    if step % SAVE_CHECKPOINT_INTERVAL == 0:
+        save_checkpoint(params, SAVE_DIR, step=str(step)) # save every 10-20k steps or so
     # Evaluate
     evaluate_policy(
         env,

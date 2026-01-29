@@ -72,12 +72,14 @@ def train_jax(
     obs,
     env_state,
     start_step,
-    num_steps,   # <- NEW
+    num_steps, 
 ):
 
     num_agents = env.num_agents
     action_dim = env.action_space(0).n
+    # print(f"Action dim in train_jax: {action_dim}")  #9
     obs_shape = env.observation_space()[0].shape
+    # print(f"Obs shape in train_jax: {obs_shape}")  #(11, 11, 19)
 
     if ALGO_NAME == "MAPPO":
         actor = MAPPOActor(action_dim=action_dim, encoder_type=ENCODER.lower())
@@ -89,7 +91,9 @@ def train_jax(
     rng, a_rng, c_rng = jax.random.split(rng, 3)
 
     dummy_obs = jnp.zeros((1,) + obs_shape)
-    actor_params = actor.init(a_rng, dummy_obs)
+
+    # initialize actor params - CNN weights, Dense(64) weights, Action logits weights
+    actor_params = actor.init(a_rng, dummy_obs) 
 
     dummy_world = jnp.zeros((1,) + obs_shape[:-1] + (obs_shape[-1] * num_agents,))
     if ALGO_NAME == "MAPPO":
@@ -97,22 +101,30 @@ def train_jax(
     elif ALGO_NAME == "IPPO":
         critic_params = critic.init(c_rng, dummy_obs)
 
+    # print("Initialized actor and critic parameters.")
+    # print(f"Actor params keys: {list(actor_params.keys())}")
+    # print(f"Critic params keys: {list(critic_params.keys())}")
+    # print(f"Actor params: {jax.tree_map(lambda x: x.shape, actor_params)}")
+    # print(f"Critic params: {jax.tree_map(lambda x: x.shape, critic_params)}")
+    # print(f"Actor params values: {list(actor_params.values())}")
+
     actor_state = TrainState.create(
         apply_fn=actor.apply,
         params=actor_params,
-        # tx=optax.adam(LEARNING_RATE) #change to adamw because relu unavailable on optax
-        tx=optax.adamw(LEARNING_RATE)
+        # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
+        tx=optax.adamw(ACTOR_LR)
     )
 
     critic_state = TrainState.create(
         apply_fn=critic.apply,
         params=critic_params,
-        # tx=optax.adam(LEARNING_RATE) #change to adamw because relu unavailable on optax
-        tx=optax.adamw(LEARNING_RATE)
+        # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
+        tx=optax.adam(CRITIC_LR)
     )
 
-
-
+    # print("Created TrainState for actor and critic.")
+    # print(f"Actor apply fn: {actor_state.apply_fn}")
+    # print(f"Critic apply fn: {critic_state.apply_fn}")
 
     # def save_gif_callback(args):
     #     """
@@ -563,8 +575,9 @@ def train_jax(
             payload = dict(payload)
 
             wandb.log(payload)
-
-        jax.debug.callback(wandb_log_callback_safe, log_payload)
+        
+        if LOG_WANDB:
+            jax.debug.callback(wandb_log_callback_safe, log_payload)
 
 
         return (actor_state, critic_state, env_state, obs, rng, step), metrics

@@ -1,15 +1,17 @@
 import wandb
 #  All hyperparameters
-
+LOG_WANDB = True  
 
 # ENV SETTINGS
 NUM_AGENTS=5
 GRID_SIZE = (18,25) #make it smaller (maybe half the size) for faster training
 NUM_INNER_STEPS=256 #256
 NUM_OUTER_STEPS=512000 #10e4
-EVAL_INTERVAL = 5000 # keep multiple of 256
-# CHUNK_SIZE = 1000
-NUM_EVAL_STEPS = 128  # Number of steps during evaluation
+EVAL_INTERVAL = 5120 # keep multiple of 256
+NUM_EVAL_STEPS = 256  # Number of steps during evaluation
+SAVE_CHECKPOINT_INTERVAL = 51200  # Save model checkpoint every n outer steps
+SAVE_GIF = True
+SAVE_GIF_INTERVAL = 51200  # Save GIF every n outer steps
 # EVAL_STEPS should be similar to steps in training episodes for consistency
 MAX_APPLE_GROWTH_RATE=0.3  # #deepmind paper- 0.03, human=0.067
 THRESHOLD_DEPLETION=0.32  # 0.4 #deepmind paper- 0.32, human=0.6
@@ -40,9 +42,8 @@ ENT_COEF = 0.01        # Entropy coefficient
 VF_COEF = 0.25          # Value function coefficient
 
 # OTHER
-SAVE_DIR = f"{ALGO_NAME+ENCODER}_gif/a{NUM_AGENTS}_i{NUM_INNER_STEPS}_o{NUM_OUTER_STEPS}_dep{THRESHOLD_DEPLETION}_res{THRESHOLD_RESTORATION}_dsp{DIRT_SPAWN_PROBABILITY}_dsds{DELAY_START_OF_DIRT_SPAWNING}_rs{REWARD_STRUCTURE}"
-SAVE_GIF = True
-SAVE_GIF_INTERVAL = 50  # Save GIF every n outer steps
+# SAVE_DIR = f"{ALGO_NAME+ENCODER}_gif/a{NUM_AGENTS}_i{NUM_INNER_STEPS}_o{NUM_OUTER_STEPS}_dep{THRESHOLD_DEPLETION}_res{THRESHOLD_RESTORATION}_dsp{DIRT_SPAWN_PROBABILITY}_dsds{DELAY_START_OF_DIRT_SPAWNING}_rs{REWARD_STRUCTURE}"
+SAVE_DIR = f"{ALGO_NAME+ENCODER}_gif/a{NUM_AGENTS}_i{NUM_INNER_STEPS}_rs{REWARD_STRUCTURE}"
 
 
 
