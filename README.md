@@ -1,3 +1,8 @@
+## To run the code
+```
+python jax_cleanup.py
+```
+
 ## Important files
 ```jax_cleanup.py```: the main file to run the code
 
