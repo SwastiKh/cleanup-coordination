@@ -26,7 +26,7 @@ INEQUITY_AVERSION_TARGET_AGENTS = None  # None or list of agent indices
 
 
 # Algo settings
-ALGO_NAME = "MAPPO" # "RANDOM" or "PPO" or "MAPPO" or "IPPO"
+ALGO_NAME = "IPPO" # "RANDOM" or "PPO" or "MAPPO" or "IPPO"
 ENCODER = "CNN"  # "MLP" or "CNN" or "RNN"
 
 # PPO 

@@ -38,7 +38,6 @@ def evaluate_policy(
     save_dir   : directory to save GIF
     """
     print("[Evaluation] Starting evaluation at {} step...".format(current_step))
-    os.makedirs(os.path.join(save_dir, str(current_step)), exist_ok=True)
 
     rng = jax.random.PRNGKey(seed)
     rng, reset_rng = jax.random.split(rng)
@@ -105,6 +104,7 @@ def evaluate_policy(
 
     gif_path = os.path.join(save_dir, str(current_step), "evaluation.gif")
     if SAVE_GIF and current_step % SAVE_GIF_INTERVAL == 0:
+        os.makedirs(os.path.join(save_dir, str(current_step)), exist_ok=True)
         # Save GIF
         frames_pil = [Image.fromarray(f) for f in frames]
         frames_pil[0].save(
