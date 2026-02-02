@@ -116,6 +116,7 @@ while step < NUM_OUTER_STEPS:
         params,
         num_steps=NUM_EVAL_STEPS,
         save_dir=SAVE_DIR,
+        log_wandb=LOG_WANDB,
         current_step=step,
     )
 
@@ -135,6 +136,7 @@ evaluate_policy(
     params,
     num_steps=NUM_INNER_STEPS,
     save_dir=SAVE_DIR,
+    log_wandb=LOG_WANDB,
     current_step="final",
 )
 

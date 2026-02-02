@@ -11,7 +11,18 @@ def compute_gae(traj, last_values, config):
     last_values: (N,)
     """
     rewards = traj.rewards
+    # print("Rewards shape in GAE:", rewards.shape)
+    # jax.debug.print(
+    #     "per agent rewards: {}", 
+    #     jnp.sum(rewards, axis=0)
+    # )
+
     values = traj.values
+    # jax.debug.print(
+    #     "per agent values: {}", 
+    #     jnp.sum(values, axis=0)
+    # )
+    
     dones = traj.dones
 
     gamma = config["GAMMA"]

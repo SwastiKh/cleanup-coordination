@@ -112,7 +112,7 @@ def train_jax(
         apply_fn=actor.apply,
         params=actor_params,
         # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
-        tx=optax.adamw(ACTOR_LR)
+        tx=optax.adam(ACTOR_LR)
     )
 
     critic_state = TrainState.create(
@@ -275,7 +275,7 @@ def train_jax(
 
     #     return actor_state, critic_state, metrics
 
-    def ppo_update(actor_state, critic_state, traj, adv, targets, config):
+    def ppo_update(ent_coef_log, actor_state, critic_state, traj, adv, targets, config):
         obs = traj.obs                     # (T, N, H, W, C)
         world_state = traj.world_state     # (T, H, W, C*N)
         actions = traj.actions             # (T, N)
@@ -297,7 +297,7 @@ def train_jax(
 
             ratio = jnp.exp(logp - logp_old_flat)
             # adv_n = (adv_flat - adv_flat.mean()) / (adv_flat.std() + 1e-8)
-            adv_std = jnp.maximum(adv_flat.std(), 0.05) #1e-4
+            adv_std = jnp.maximum(adv_flat.std(), 1e-4) #1e-8, 0.05
             adv_n = (adv_flat - adv_flat.mean()) / (adv_std)
 
             policy_loss = -jnp.mean(
@@ -366,7 +366,7 @@ def train_jax(
             elif ALGO_NAME == "IPPO":
                 values_t = critic.apply(
                     critic_params,
-                    obs.reshape((T * N,) + obs.shape[2:])
+                    obs_flat
                 )  # (T*N,)
 
                 value_loss = jnp.mean((values_t - targets_flat) ** 2)
@@ -380,7 +380,7 @@ def train_jax(
             total_loss = (
                 policy_loss
                 + config["VF_COEF"] * value_loss
-                - config["ENT_COEF"] * entropy
+                - ent_coef_log * entropy
             )
 
             metrics = {
@@ -427,9 +427,14 @@ def train_jax(
         #     m=targets.mean(),
         # )
 
+        ent_coef_log = jnp.interp(
+            step,
+            np.array([0, config["NUM_OUTER_STEPS"]]),
+            np.array([config["ENT_COEF_START"], config["ENT_COEF_END"]])
+        )
 
         actor_state, critic_state, metrics = ppo_update(
-            actor_state, critic_state, traj, advantages, targets, config
+            ent_coef_log, actor_state, critic_state, traj, advantages, targets, config
         )
 
 
@@ -560,7 +565,7 @@ def train_jax(
             "total_loss": (
                 metrics["policy_loss"]
                 + config["VF_COEF"] * metrics["value_loss"]
-                - config["ENT_COEF"] * metrics["entropy"]
+                - ent_coef_log * metrics["entropy"]
             ),
             "mean_episode_return": mean_episode_return,
             **{f"agent_{i}_episode_return": episode_returns[i] for i in range(num_agents)},

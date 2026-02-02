@@ -192,6 +192,7 @@ class Clean_up(MultiAgentEnv):
         inequity_aversion_alpha=5,
         inequity_aversion_beta=0.05,
         shared_cleaning_rewards=False,
+        ind_cleaning_rewards=False,
         svo=False,
         svo_target_agents=None,
         svo_w=0.5,
@@ -243,6 +244,7 @@ class Clean_up(MultiAgentEnv):
         self.inequity_aversion_alpha = inequity_aversion_alpha
         self.inequity_aversion_beta = inequity_aversion_beta
         self.shared_cleaning_rewards = shared_cleaning_rewards
+        self.ind_cleaning_rewards = ind_cleaning_rewards
         self.svo = svo
         self.svo_target_agents = svo_target_agents
         self.svo_w = svo_w
@@ -1431,6 +1433,20 @@ class Clean_up(MultiAgentEnv):
                 info = {
                     "original_rewards": original_rewards.squeeze(),
                     "shared_cleaning_reward": jnp.array([shared_cleaning_reward]*self.num_agents).squeeze(),
+                    "shaped_rewards": rewards.squeeze(),
+                    "total_successful_cleans": num_successful_cleans,
+                    "total_apples_collected": jnp.sum(original_rewards),
+                }
+            elif self.ind_cleaning_rewards:
+                rewards = jnp.zeros((self.num_agents, 1))
+                original_rewards = jnp.where(apple_matches, 1, rewards)  * self.num_agents
+                normalized_cleaning_reward = jnp.float32(num_successful_cleans) / self.num_agents
+                ind_cleaning_reward = jnp.where(jnp.isin(actions, Actions.zap_clean), normalized_cleaning_reward, 0)
+                # add total cleaning reward to all agents
+                rewards = original_rewards + ind_cleaning_reward
+                info = {
+                    "original_rewards": original_rewards.squeeze(),
+                    # "ind_cleaning_reward": jnp.array([ind_cleaning_reward]*self.num_agents).squeeze(),
                     "shaped_rewards": rewards.squeeze(),
                     "total_successful_cleans": num_successful_cleans,
                     "total_apples_collected": jnp.sum(original_rewards),
