@@ -123,7 +123,7 @@ def evaluate_policy(
         wandb.log({
             "eval/episode_return_mean": episode_return.mean().item(),
             # "eval/episode_return_agent0": episode_return[0].item(),
-            **{f"agent_{i}_episode_return": episode_return[i].item() for i in range(num_agents)}
+            **{f"eval/episode_return_agent{i}": episode_return[i].item() for i in range(num_agents)},
             # "eval/gif": wandb.Video(gif_path, format="gif"),
         })
 

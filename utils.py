@@ -30,8 +30,8 @@ ALGO_NAME = "MAPPO" # "RANDOM" or "PPO" or "MAPPO" or "IPPO"
 ENCODER = "CNN"  # "MLP" or "CNN" or "RNN"
 
 # PPO 
-ACTOR_LR = 3e-4
-CRITIC_LR = 1e-3
+ACTOR_LR = 1e-3 #3e-4
+CRITIC_LR = 3e-3 #1e-3
 # LEARNING_RATE = 3e-4
 GAMMA = 0.995           # Discount factor
 GAE_LAMBDA = 0.95      # Lambda for Generalized Advantage Estimation

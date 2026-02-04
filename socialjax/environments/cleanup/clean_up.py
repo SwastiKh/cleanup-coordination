@@ -1181,7 +1181,7 @@ class Clean_up(MultiAgentEnv):
                     state.grid
                 )
             )
-            return state, num_successful_cleans
+            return state, num_successful_cleans, successful_cleans_mask
 
 
         def _step(
@@ -1355,7 +1355,7 @@ class Clean_up(MultiAgentEnv):
 
             reborn_players, state = _interact_fire_zapping(key, state, actions)
 
-            state, num_successful_cleans = _interact_fire_cleaning(key, state, actions)
+            state, num_successful_cleans, successful_cleans_mask = _interact_fire_cleaning(key, state, actions)
 
             reborn_players_3d = jnp.stack([reborn_players, reborn_players, reborn_players], axis=-1)
 
@@ -1441,7 +1441,10 @@ class Clean_up(MultiAgentEnv):
                 rewards = jnp.zeros((self.num_agents, 1))
                 original_rewards = jnp.where(apple_matches, 1, rewards)  * self.num_agents
                 normalized_cleaning_reward = jnp.float32(num_successful_cleans) / self.num_agents
-                ind_cleaning_reward = jnp.where(jnp.isin(actions, Actions.zap_clean), normalized_cleaning_reward, 0)
+                successful_cleans_mask = successful_cleans_mask.astype(jnp.float32)
+                for i in range(self.num_agents):
+                    jax.debug.print("Agent {i} successful_cleans_mask: {mask}", i=i, mask=successful_cleans_mask[i])
+                ind_cleaning_reward = jnp.where(successful_cleans_mask, normalized_cleaning_reward, 0)
                 # add total cleaning reward to all agents
                 rewards = original_rewards + ind_cleaning_reward
                 info = {
