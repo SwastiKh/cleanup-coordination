@@ -3,22 +3,22 @@ import wandb
 LOG_WANDB = True  
 
 # ENV SETTINGS
-NUM_AGENTS=5
+NUM_AGENTS=3
 GRID_SIZE = (18,25) #make it smaller (maybe half the size) for faster training
 NUM_INNER_STEPS=256 #256
-NUM_OUTER_STEPS=512000 #10e4
-EVAL_INTERVAL = 5120 # keep multiple of 256
+NUM_OUTER_STEPS=51200 #10e4
+EVAL_INTERVAL = 512 # keep multiple of 256
 NUM_EVAL_STEPS = 256  # Number of steps during evaluation
-SAVE_CHECKPOINT_INTERVAL = 51200  # Save model checkpoint every n outer steps
+SAVE_CHECKPOINT_INTERVAL = 5120  # Save model checkpoint every n outer steps
 SAVE_GIF = True
-SAVE_GIF_INTERVAL = 51200  # Save GIF every n outer steps
+SAVE_GIF_INTERVAL = 5120  # Save GIF every n outer steps
 # EVAL_STEPS should be similar to steps in training episodes for consistency
 MAX_APPLE_GROWTH_RATE=0.3  # #deepmind paper- 0.03, human=0.067
 THRESHOLD_DEPLETION=0.32  # 0.4 #deepmind paper- 0.32, human=0.6
 THRESHOLD_RESTORATION=0.2 # 0.0 #deepmind paper- 0.0, human=0.3
 DIRT_SPAWN_PROBABILITY=0.5  # 0.5 #deepmind paper- 0.5, human=0.6
 DELAY_START_OF_DIRT_SPAWNING=50  # 50
-REWARD_STRUCTURE = "SHARED_CLEANING_REWARDS_ent_annealing"  # "SHARED" or "INEQUITY_AVERSION" or "BASIC_ENV"
+REWARD_STRUCTURE = "SHARED_CLEANING_REWARDS_AC_init"  # "SHARED" or "INEQUITY_AVERSION" or "BASIC_ENV"
 SHARED_CLEANING_REWARDS = True  # True or False
 SHARED_REWARDS = False  # True or False
 INEQUITY_AVERSION = False  # True or False

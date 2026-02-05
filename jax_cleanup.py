@@ -16,6 +16,8 @@ from algos.train_jax import train_jax
 from evaluate import evaluate_policy
 from checkpoint import save_checkpoint, load_checkpoint
 
+import optax
+from flax.training.train_state import TrainState
 
 
 
@@ -80,6 +82,42 @@ actor_state, critic_state = [None, None]
 step = 0
 # print(f"env_state after reset: {env_state}")
 
+action_dim = env.action_space(0).n
+if ALGO_NAME == "MAPPO":
+    actor = MAPPOActor(action_dim=action_dim, encoder_type=ENCODER.lower())
+    critic = MAPPOCritic(encoder_type=ENCODER.lower())
+elif ALGO_NAME == "IPPO":
+    actor = IPPOActor(action_dim=action_dim, encoder_type=ENCODER.lower())
+    critic = IPPOCritic(encoder_type=ENCODER.lower())
+
+rng, a_rng, c_rng = jax.random.split(rng, 3)
+
+obs_shape = env.observation_space()[0].shape
+dummy_obs = jnp.zeros((1,) + obs_shape)
+# initialize actor params - CNN weights, Dense(64) weights, Action logits weights
+actor_params = actor.init(a_rng, dummy_obs) 
+dummy_world = jnp.zeros((1,) + obs_shape[:-1] + (obs_shape[-1] * NUM_AGENTS,))
+if ALGO_NAME == "MAPPO":
+    critic_params = critic.init(c_rng, dummy_world)
+elif ALGO_NAME == "IPPO":
+    critic_params = critic.init(c_rng, dummy_obs)
+
+
+actor_state = TrainState.create(
+    apply_fn=actor.apply,
+    params=actor_params,
+    # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
+    tx=optax.adam(ACTOR_LR)
+)
+
+critic_state = TrainState.create(
+    apply_fn=critic.apply,
+    params=critic_params,
+    # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
+    tx=optax.adam(CRITIC_LR)
+)
+
+
 while step < NUM_OUTER_STEPS:
     print(f"\n=== Training steps {step} → {step + EVAL_INTERVAL} ===")
 
@@ -87,8 +125,10 @@ while step < NUM_OUTER_STEPS:
         rng = rng,
         env=env,
         config=config,
+        actor=actor,
+        critic=critic,
         actor_state=actor_state,
-        critic_state=critic_state,
+        critic_state=critic_state, 
         obs=obs,
         env_state=env_state,
         start_step=step, # unused currently

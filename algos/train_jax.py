@@ -67,6 +67,8 @@ def train_jax(
     rng,
     env,
     config,
+    actor,
+    critic,
     actor_state,
     critic_state,
     obs,
@@ -76,30 +78,30 @@ def train_jax(
 ):
 
     num_agents = env.num_agents
-    action_dim = env.action_space(0).n
+    # action_dim = env.action_space(0).n
     # print(f"Action dim in train_jax: {action_dim}")  #9
-    obs_shape = env.observation_space()[0].shape
+    # obs_shape = env.observation_space()[0].shape
     # print(f"Obs shape in train_jax: {obs_shape}")  #(11, 11, 19)
 
-    if ALGO_NAME == "MAPPO":
-        actor = MAPPOActor(action_dim=action_dim, encoder_type=ENCODER.lower())
-        critic = MAPPOCritic(encoder_type=ENCODER.lower())
-    elif ALGO_NAME == "IPPO":
-        actor = IPPOActor(action_dim=action_dim, encoder_type=ENCODER.lower())
-        critic = IPPOCritic(encoder_type=ENCODER.lower())
+    # if ALGO_NAME == "MAPPO":
+    #     actor = MAPPOActor(action_dim=action_dim, encoder_type=ENCODER.lower())
+    #     critic = MAPPOCritic(encoder_type=ENCODER.lower())
+    # elif ALGO_NAME == "IPPO":
+    #     actor = IPPOActor(action_dim=action_dim, encoder_type=ENCODER.lower())
+    #     critic = IPPOCritic(encoder_type=ENCODER.lower())
 
-    rng, a_rng, c_rng = jax.random.split(rng, 3)
+    # rng, a_rng, c_rng = jax.random.split(rng, 3)
 
-    dummy_obs = jnp.zeros((1,) + obs_shape)
+    # dummy_obs = jnp.zeros((1,) + obs_shape)
 
-    # initialize actor params - CNN weights, Dense(64) weights, Action logits weights
-    actor_params = actor.init(a_rng, dummy_obs) 
+    # # initialize actor params - CNN weights, Dense(64) weights, Action logits weights
+    # actor_params = actor.init(a_rng, dummy_obs) 
 
-    dummy_world = jnp.zeros((1,) + obs_shape[:-1] + (obs_shape[-1] * num_agents,))
-    if ALGO_NAME == "MAPPO":
-        critic_params = critic.init(c_rng, dummy_world)
-    elif ALGO_NAME == "IPPO":
-        critic_params = critic.init(c_rng, dummy_obs)
+    # dummy_world = jnp.zeros((1,) + obs_shape[:-1] + (obs_shape[-1] * num_agents,))
+    # if ALGO_NAME == "MAPPO":
+    #     critic_params = critic.init(c_rng, dummy_world)
+    # elif ALGO_NAME == "IPPO":
+    #     critic_params = critic.init(c_rng, dummy_obs)
 
     # print("Initialized actor and critic parameters.")
     # print(f"Actor params keys: {list(actor_params.keys())}")
@@ -108,19 +110,19 @@ def train_jax(
     # print(f"Critic params: {jax.tree_map(lambda x: x.shape, critic_params)}")
     # print(f"Actor params values: {list(actor_params.values())}")
 
-    actor_state = TrainState.create(
-        apply_fn=actor.apply,
-        params=actor_params,
-        # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
-        tx=optax.adam(ACTOR_LR)
-    )
+    # actor_state = TrainState.create(
+    #     apply_fn=actor.apply,
+    #     params=actor_params,
+    #     # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
+    #     tx=optax.adam(ACTOR_LR)
+    # )
 
-    critic_state = TrainState.create(
-        apply_fn=critic.apply,
-        params=critic_params,
-        # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
-        tx=optax.adam(CRITIC_LR)
-    )
+    # critic_state = TrainState.create(
+    #     apply_fn=critic.apply,
+    #     params=critic_params,
+    #     # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
+    #     tx=optax.adam(CRITIC_LR)
+    # )
 
     # print("Created TrainState for actor and critic.")
     # print(f"Actor apply fn: {actor_state.apply_fn}")

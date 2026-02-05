@@ -95,15 +95,15 @@ def evaluate_policy(
         # print("Eval step {}, reward: {}, done: {}".format(t, reward, done))
 
         episode_return += jnp.array(reward)
-
-        img = env.render(env_state)
-        frames.append(np.asarray(img))
+        if SAVE_GIF and (current_step % SAVE_GIF_INTERVAL == 0 or current_step=="final"):
+            img = env.render(env_state)
+            frames.append(np.asarray(img))
 
         if done["__all__"]:
             break
 
-    gif_path = os.path.join(save_dir, str(current_step), "evaluation.gif")
-    if SAVE_GIF and current_step % SAVE_GIF_INTERVAL == 0:
+    if SAVE_GIF and (current_step % SAVE_GIF_INTERVAL == 0 or current_step=="final"):
+        gif_path = os.path.join(save_dir, str(current_step), "evaluation.gif")
         os.makedirs(os.path.join(save_dir, str(current_step)), exist_ok=True)
         # Save GIF
         frames_pil = [Image.fromarray(f) for f in frames]
@@ -129,5 +129,5 @@ def evaluate_policy(
 
     return {
         "episode_return": episode_return,
-        "gif_path": gif_path,
+        # "gif_path": gif_path,
     }
