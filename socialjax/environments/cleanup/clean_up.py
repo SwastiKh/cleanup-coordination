@@ -205,29 +205,46 @@ class Clean_up(MultiAgentEnv):
         delayStartOfDirtSpawning=50, # 50
         jit=True,
         
-        obs_size=11,
+        # obs_size=11,
+        obs_size=7,
         cnn=True,
 
-        map_ASCII = [
-                'HFFFHFFHFHFHFHFHFHFHHFHFFFHF',
-                'HFHFHFFHFHFHFHFHFHFHHFHFFFHF',
-                'HFFHFFHHFHFHFHFHFHFHHFHFFFHF',
-                'HFHFHFFHFHFHFHFHFHFHHFHFFFHF',
-                'HFFFFFFHFHFHFHFHFHFHHFHFFFHF',
-                '==============+~FHHHHHHf====',
-                '   P    P      ===+~SSf     ',
-                '     P     P   P  <~Sf  P   ',
-                '             P   P<~S>      ',
-                '   P    P         <~S>   P  ',
-                '               P  <~S>P     ',
-                '     P           P<~S>      ',
-                '           P      <~S> P    ',
-                '  P             P <~S>      ',
-                '^T^T^T^T^T^T^T^T^T;~S,^T^T^T',
-                'BBBBBBBBBBBBBBBBBBBssBBBBBBB',
-                'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-                'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-                'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        # map_ASCII = [
+        #         'HFFFHFFHFHFHFHFHFHFHHFHFFFHF',
+        #         'HFHFHFFHFHFHFHFHFHFHHFHFFFHF',
+        #         'HFFHFFHHFHFHFHFHFHFHHFHFFFHF',
+        #         'HFHFHFFHFHFHFHFHFHFHHFHFFFHF',
+        #         'HFFFFFFHFHFHFHFHFHFHHFHFFFHF',
+        #         '==============+~FHHHHHHf====',
+        #         '   P    P      ===+~SSf     ',
+        #         '     P     P   P  <~Sf  P   ',
+        #         '             P   P<~S>      ',
+        #         '   P    P         <~S>   P  ',
+        #         '               P  <~S>P     ',
+        #         '     P           P<~S>      ',
+        #         '           P      <~S> P    ',
+        #         '  P             P <~S>      ',
+        #         '^T^T^T^T^T^T^T^T^T;~S,^T^T^T',
+        #         'BBBBBBBBBBBBBBBBBBBssBBBBBBB',
+        #         'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        #         'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        #         'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        #     ]
+            map_ASCII = [
+                'HHFHFHFHFHFHFHHFHFFFHF',
+                'FHFHFHFHFHFHFHHFHFFFHF',
+                'FHFHFHFHFHFHFHHFHFFFHF',
+                '========+~FHHHHHHf====',
+                '  P      ===+~SSf     ',
+                '     P   P  <~Sf  P   ',
+                '         P  <~S>P     ',
+                '           P<~S>      ',
+                '     P      <~S> P    ',
+                '          P <~S>      ',
+                '^T^T^T^T^T^T;~S,^T^T^T',
+                'BBBBBBBBBBBBBssBBBBBBB',
+                'BBBBBBBBBBBBBBBBBBBBBB',
+                'BBBBBBBBBBBBBBBBBBBBBB',
             ]
     ):
 
@@ -1460,7 +1477,7 @@ class Clean_up(MultiAgentEnv):
                 # rewards = jnp.where(apple_matches, 10, rewards) * self.num_agents
                 info = {
                     "total_successful_cleans": num_successful_cleans,
-                    "total_apples_collected": jnp.sum(original_rewards),
+                    "total_apples_collected": jnp.sum(rewards),
                 }
             
             info["clean_action_info"] = jnp.where(actions == Actions.zap_clean, 1, 0).squeeze()

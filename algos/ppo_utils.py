@@ -2,6 +2,31 @@ import jax
 import jax.numpy as jnp
 
 
+def compute_adv_no_gae(traj, last_values, config):
+    """
+    Compute advantages without GAE (i.e. using simple TD residuals).
+
+    traj: Transition with fields stacked over time
+      - traj.rewards: (T, N)
+      - traj.values:  (T, N)
+      - traj.dones:   (T, N)
+    last_values: (N,)
+    """ 
+    rewards = traj.rewards
+    values = traj.values
+    dones = traj.dones
+
+    gamma = config["GAMMA"]
+
+    T, N = rewards.shape
+
+    # Append last_values to values for bootstrapping
+    values = jnp.concatenate([values, last_values[None, :]], axis=0)  # (T+1, N)
+
+    advantages = rewards + gamma * values[1:] * (1.0 - dones) - values[:-1]
+    targets = advantages + values[:-1]
+    return advantages, targets
+
 def compute_gae(traj, last_values, config):
     """
     traj: Transition with fields stacked over time

@@ -1,19 +1,12 @@
 import jax
 import jax.numpy as jnp
-from flax.training.train_state import TrainState
-import optax
+# from flax.training.train_state import TrainState
+# import optax
 from algos.mappo_ippo_basic import *
-# from algos.ippo_cnn_cleanup import *
-# from algos.mappo_cnn_cleanup import *
-from algos.ppo_utils import compute_gae, ppo_loss
+from algos.ppo_utils import compute_adv_no_gae, compute_gae, ppo_loss
 from utils import *
-# from checkpoint import save_checkpoint, load_checkpoint
 from typing import NamedTuple
 import numpy as np
-from PIL import Image
-import os
-from evaluate import evaluate_policy
-from socialjax import make
 
 class Transition(NamedTuple):
     obs: jnp.ndarray        # (N, H, W, C)
@@ -26,43 +19,6 @@ class Transition(NamedTuple):
     additional_info: dict    # Additional info from the environment
 
 
-# def eval_callback(actor_params, critic_params, step):
-#     step = int(step)
-
-#     eval_dir = os.path.join(SAVE_DIR, f"eval_step_{step}")
-
-#     # IMPORTANT: create a fresh eval env
-#     eval_env = make(
-#         'clean_up',
-#         num_inner_steps=NUM_INNER_STEPS,
-#         num_outer_steps=NUM_OUTER_STEPS,
-#         num_agents=NUM_AGENTS,
-#         maxAppleGrowthRate=MAX_APPLE_GROWTH_RATE,
-#         thresholdDepletion=THRESHOLD_DEPLETION,
-#         thresholdRestoration=THRESHOLD_RESTORATION,
-#         dirtSpawnProbability=DIRT_SPAWN_PROBABILITY,
-#         delayStartOfDirtSpawning=DELAY_START_OF_DIRT_SPAWNING,
-#         shared_rewards=SHARED_REWARDS,
-#         shared_cleaning_rewards=SHARED_CLEANING_REWARDS,
-#         inequity_aversion=INEQUITY_AVERSION,
-#         inequity_aversion_target_agents=INEQUITY_AVERSION_TARGET_AGENTS
-#     )
-
-#     evaluate_policy(
-#         env=eval_env,
-#         params={
-#             "actor": actor_params,
-#             "critic": critic_params,
-#         },
-#         num_steps=NUM_INNER_STEPS,
-#         save_dir=eval_dir,
-#         deterministic=True,
-#         log_wandb=True,
-#     )
-
-
-
-# def train_mappo_jax(rng, env, config, algo="MAPPO"):
 def train_jax(
     rng,
     env,
@@ -78,97 +34,6 @@ def train_jax(
 ):
 
     num_agents = env.num_agents
-    # action_dim = env.action_space(0).n
-    # print(f"Action dim in train_jax: {action_dim}")  #9
-    # obs_shape = env.observation_space()[0].shape
-    # print(f"Obs shape in train_jax: {obs_shape}")  #(11, 11, 19)
-
-    # if ALGO_NAME == "MAPPO":
-    #     actor = MAPPOActor(action_dim=action_dim, encoder_type=ENCODER.lower())
-    #     critic = MAPPOCritic(encoder_type=ENCODER.lower())
-    # elif ALGO_NAME == "IPPO":
-    #     actor = IPPOActor(action_dim=action_dim, encoder_type=ENCODER.lower())
-    #     critic = IPPOCritic(encoder_type=ENCODER.lower())
-
-    # rng, a_rng, c_rng = jax.random.split(rng, 3)
-
-    # dummy_obs = jnp.zeros((1,) + obs_shape)
-
-    # # initialize actor params - CNN weights, Dense(64) weights, Action logits weights
-    # actor_params = actor.init(a_rng, dummy_obs) 
-
-    # dummy_world = jnp.zeros((1,) + obs_shape[:-1] + (obs_shape[-1] * num_agents,))
-    # if ALGO_NAME == "MAPPO":
-    #     critic_params = critic.init(c_rng, dummy_world)
-    # elif ALGO_NAME == "IPPO":
-    #     critic_params = critic.init(c_rng, dummy_obs)
-
-    # print("Initialized actor and critic parameters.")
-    # print(f"Actor params keys: {list(actor_params.keys())}")
-    # print(f"Critic params keys: {list(critic_params.keys())}")
-    # print(f"Actor params: {jax.tree_map(lambda x: x.shape, actor_params)}")
-    # print(f"Critic params: {jax.tree_map(lambda x: x.shape, critic_params)}")
-    # print(f"Actor params values: {list(actor_params.values())}")
-
-    # actor_state = TrainState.create(
-    #     apply_fn=actor.apply,
-    #     params=actor_params,
-    #     # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
-    #     tx=optax.adam(ACTOR_LR)
-    # )
-
-    # critic_state = TrainState.create(
-    #     apply_fn=critic.apply,
-    #     params=critic_params,
-    #     # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
-    #     tx=optax.adam(CRITIC_LR)
-    # )
-
-    # print("Created TrainState for actor and critic.")
-    # print(f"Actor apply fn: {actor_state.apply_fn}")
-    # print(f"Critic apply fn: {critic_state.apply_fn}")
-
-    # def save_gif_callback(args):
-    #     """
-    #     Saves a GIF of the agent's observations.
-    #     args: (obs_sequence, step_idx, save_dir)
-    #     """
-    #     obs_seq, step_idx, save_dir = args
-        
-    #     # obs_seq shape is likely: (Time, Num_Agents, Height, Width, Channels)
-    #     # We want: (Time, Height, Width, Channels)
-    #     frames_data = np.array(obs_seq[:, 0]) 
-
-    #     # 2. CRITICAL FIX: Handle High Channel Counts
-    #     # If the observation has more than 3 channels (e.g. 19), it's likely a "World State" 
-    #     # or stacked frames. We must slice strictly the first 3 channels (RGB).
-    #     if frames_data.shape[-1] > 3:
-    #         # Take only the first 3 channels (R, G, B)
-    #         frames_data = frames_data[..., :3]
-        
-    #     if frames_data.max() <= 1.0:
-    #         frames_data = (frames_data * 255).astype(np.uint8)
-    #     else:
-    #         frames_data = frames_data.astype(np.uint8)
-
-    #     frames = [Image.fromarray(frame) for frame in frames_data]
-        
-    #     # Ensure directory exists
-    #     gif_dir = os.path.join(save_dir, "gifs")
-    #     os.makedirs(gif_dir, exist_ok=True)
-        
-    #     filename = os.path.join(gif_dir, f"step_{step_idx}.gif")
-        
-    #     frames[0].save(
-    #         filename,
-    #         format="GIF",
-    #         append_images=frames[1:],
-    #         save_all=True,
-    #         duration=100,  # 100ms per frame
-    #         loop=0
-    #     )
-    #     print(f"Saved GIF to {filename}")
-
 
     def env_step(carry, _):
         actor_state, critic_state, env_state, obs, rng = carry
@@ -211,77 +76,71 @@ def train_jax(
             log_probs=logp,
             additional_info=info,
         )
+        # transition = Transition(
+        #     obs=jnp.stack(obs),  # (T, N, H, W, C)
+        #     world_state=jnp.stack(world_state),  # (T, H, W, C*N)
+        #     rewards=jnp.stack(reward),  # (T, N)
+        #     dones=jnp.stack(done_flag),  # (T, N)
+        #     values=jnp.stack(values),  # (T, N)
+        #     actions=jnp.stack(actions),  # (T, N)
+        #     log_probs=jnp.stack(logp),  # (T, N)
+        #     additional_info=info  # list of dicts
+        # )
+        #     transition = Transition(
+        #         obs=[],
+        #         world_state=[],
+        #         rewards=[],
+        #         dones=[],
+        #         values=[],
+        #         actions=[],
+        #         log_probs=[],
+        #         additional_info=[],
+        #     )
+        #     transition.obs.append(obs)
+        #     transition.world_state.append(world_state)
+        #     transition.rewards.append(reward)
+        #     transition.dones.append(done_flag)
+        #     transition.values.append(values)
+        #     transition.actions.append(actions)
+        #     transition.log_probs.append(logp)
+        #     transition.additional_info.append(info)
 
+        
+        # jax.debug.print(
+        #     "obs shape: {s}, actions shape: {a}, rewards shape: {r}, dones shape: {d}, values shape: {v}, log_probs shape: {l}, transition obs shape: {ts}",
+        #     s=obs.shape,
+        #     a=actions.shape,
+        #     r=reward.shape,
+        #     d=done_flag.shape,
+        #     v=values.shape,
+        #     l=logp.shape,
+        #     ts=transition.obs.shape,
+        # )
+
+        # breakpoint()
         return (actor_state, critic_state, env_state, obs, rng), transition
 
 
     def collect_rollout(carry):
-        return jax.lax.scan(env_step, carry, None, config["NUM_INNER_STEPS"])
+        # return jax.lax.scan(env_step, carry, None, config["NUM_INNER_STEPS"])
+        return jax.lax.scan(env_step, carry, None, config["EVAL_INTERVAL"])
 
-    # def ppo_update(actor_state, critic_state, traj, adv, targets, config):
-    #     # obs, actions, logp_old, values_old, _, _ = traj
-    #     obs = traj.obs
-    #     T, N = obs.shape[:2]
-    #     actions = traj.actions
-    #     logp_old = traj.log_probs
-    #     values_old = traj.values
-
-    #     obs_flat = obs.reshape((T * N,) + obs.shape[2:])
-    #     actions = traj.actions.reshape((T * N,))
-    #     logp_old = traj.log_probs.reshape((T * N,))
-    #     adv = adv.reshape((T * N,))
-    #     targets = targets.reshape((T * N,))
-
-
-    #     def loss_fn(actor_params, critic_params):
-    #         pi, _ = actor.apply(actor_params, obs_flat)
-    #         logp = pi.log_prob(actions)
-    #         ratio = jnp.exp(logp - logp_old)
-
-    #         adv_n = (adv - adv.mean()) / (adv.std() + 1e-8)
-    #         policy_loss = -jnp.mean(
-    #             jnp.minimum(
-    #                 ratio * adv_n,
-    #                 jnp.clip(ratio, 1 - config["CLIP_EPS"], 1 + config["CLIP_EPS"]) * adv_n
-    #             )
-    #         )
-
-    #         world_state = traj.world_state
-    #         T = world_state.shape[0]
-
-    #         world_state_flat = world_state.reshape(
-    #             (T,) + world_state.shape[1:]
-    #         )
-
-    #         # values = critic.apply(critic_params, values_old)
-    #         values = critic.apply(critic_params, world_state_flat)
-
-    #         value_loss = jnp.mean((values - targets) ** 2)
-
-    #         entropy = pi.entropy().mean()
-    #         total_loss = policy_loss + config["VF_COEF"] * value_loss - config["ENT_COEF"] * entropy
-
-    #         metrics = {
-    #             "policy_loss": policy_loss,
-    #             "value_loss": value_loss,
-    #             "entropy": entropy,
-    #         }
-    #         return total_loss, metrics
-
-    #     (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True, argnums=(0,1))(
-    #         actor_state.params, critic_state.params
-    #     )
-
-    #     actor_state = actor_state.apply_gradients(grads=grads[0])
-    #     critic_state = critic_state.apply_gradients(grads=grads[1])
-
-    #     return actor_state, critic_state, metrics
-
-    def ppo_update(ent_coef_log, actor_state, critic_state, traj, adv, targets, config):
+    def ppo_update(actor_state, critic_state, traj, adv, targets, config):
         obs = traj.obs                     # (T, N, H, W, C)
         world_state = traj.world_state     # (T, H, W, C*N)
         actions = traj.actions             # (T, N)
         logp_old = traj.log_probs          # (T, N)
+
+        # jax.debug.print(
+        #     "Starting PPO update. obs shape: {s}, world_state shape: {ws}, actions shape: {a}, logp_old shape: {l}",
+        #     s=obs.shape,
+        #     ws=world_state.shape,
+        #     a=actions.shape,
+        #     l=logp_old.shape,
+        # )
+
+        print("Starting PPO update. obs shape: {}, world_state shape: {}, actions shape: {}, logp_old shape: {}".format(
+            obs.shape, world_state.shape, actions.shape, logp_old.shape))
 
         T, N = actions.shape
 
@@ -299,57 +158,19 @@ def train_jax(
 
             ratio = jnp.exp(logp - logp_old_flat)
             # adv_n = (adv_flat - adv_flat.mean()) / (adv_flat.std() + 1e-8)
-            adv_std = jnp.maximum(adv_flat.std(), 1e-4) #1e-8, 0.05
-            adv_n = (adv_flat - adv_flat.mean()) / (adv_std)
+            # adv_std = jnp.maximum(adv_flat.std(), 1e-4) #1e-8, 0.05
+            # adv_n = (adv_flat - adv_flat.mean()) / (adv_std)
 
             policy_loss = -jnp.mean(
                 jnp.minimum(
-                    ratio * adv_n,
+                    ratio * adv_flat,
                     jnp.clip(
                         ratio,
                         1.0 - config["CLIP_EPS"],
                         1.0 + config["CLIP_EPS"],
-                    ) * adv_n
+                    ) * adv_flat
                 )
             )
-
-            # jax.debug.print(
-            #     "ratio stats: min={a}, max={b}, mean={c}",
-            #     a=jnp.min(ratio),
-            #     b=jnp.max(ratio),
-            #     c=jnp.mean(ratio),
-            # )
-            # jax.debug.print(
-            #     "adv stats: mean={m}, std={s}, min={mi}, max={ma}",
-            #     m=adv_flat.mean(),
-            #     s=adv_flat.std(),
-            #     mi=adv_flat.min(),
-            #     ma=adv_flat.max(),
-            # )
-
-
-
-
-            # if ratio.min() < 0.7 or ratio.min() > 0.9 or ratio.max() < 1.1 or ratio.max() > 1.3:
-            #     jax.debug.print(
-            #         "ratio stats: min={a}, max={b}, mean={c}",
-            #         a=jnp.min(ratio),
-            #         b=jnp.max(ratio),
-            #         c=jnp.mean(ratio),
-            #     )
-            #     # a=0.7-0.9, b=1.1-1.3, c=~1.0
-
-            # if adv_flat.std() < 1e-3 or adv_flat.abs().max() > 100:
-            #     jax.debug.print(
-            #         "adv stats: mean={m}, std={s}, min={mi}, max={ma}",
-            #         m=adv_flat.mean(),
-            #         s=adv_flat.std(),
-            #         mi=adv_flat.min(),
-            #         ma=adv_flat.max(),
-            #     )
-            #     # std ≈ 0.3 – 3.0 
-            #     # !!!std < 1e-3  OR  |adv| > 100
-
 
             # ---------- Critic ----------
             if ALGO_NAME == "MAPPO":
@@ -378,12 +199,12 @@ def train_jax(
 
 
             entropy = pi.entropy().mean()
-
-            total_loss = (
-                policy_loss
-                + config["VF_COEF"] * value_loss
-                - ent_coef_log * entropy
-            )
+            # calculated later during logging 
+            # total_loss = (
+            #     policy_loss
+            #     + config["VF_COEF"] * value_loss
+            #     - ent_coef_log * entropy
+            # )
 
             metrics = {
                 "policy_loss": policy_loss,
@@ -392,7 +213,7 @@ def train_jax(
                 # "total_loss": total_loss,
                 
             }
-            return total_loss, metrics
+            return _, metrics
 
         (loss, metrics), grads = jax.value_and_grad(
             loss_fn, has_aux=True, argnums=(0, 1)
@@ -421,7 +242,8 @@ def train_jax(
         )
 
         # advantages, targets = compute_gae(traj, config)
-        advantages, targets = compute_gae(traj, last_values, config)
+        # advantages, targets = compute_gae(traj, last_values, config)
+        advantages, targets = compute_adv_no_gae(traj, last_values, config)
         # jax.debug.print(
         #     "targets stats: min={mi}, max={ma}, mean={m}",
         #     mi=targets.min(),
@@ -436,111 +258,11 @@ def train_jax(
         )
 
         actor_state, critic_state, metrics = ppo_update(
-            ent_coef_log, actor_state, critic_state, traj, advantages, targets, config
+            actor_state, critic_state, traj, advantages, targets, config
         )
 
 
-        # DOING IN MAIN FILE NOW
-        # # Checkpoint saving every 1000 steps
-        # do_save = ((step+1) % 1000) == 0
-
-
-        # def save_checkpoint_callback(args):
-        #     payload, do_save = args
-        #     if not do_save:
-        #         return
-
-        #     payload = jax.tree_map(lambda x: jax.device_get(x), payload)
-
-        #     save_checkpoint(
-        #         {
-        #             "actor": payload["actor"],
-        #             "critic": payload["critic"],
-        #         },
-        #         SAVE_DIR,
-        #         step=int(payload["step"]),
-        #     )
-
-        # ckpt_payload = {
-        #     "actor": actor_state.params,
-        #     "critic": critic_state.params,
-        #     "step": step + 1,
-        # }
-
-        # DOING IN MAIN FILE NOW
-        # jax.debug.callback(
-        #     save_checkpoint_callback,
-        #     (ckpt_payload, do_save),
-        # )
-
-        # jax.debug.callback(
-        #     lambda args: (
-        #         save_checkpoint(
-        #             {
-        #                 "actor": actor_state.params,
-        #                 "critic": critic_state.params,
-        #             },
-        #             SAVE_DIR,
-        #             step=int(args),
-        #         )
-        #         if args
-        #         else None
-        #     ),
-        #     do_save,
-        # )
-
-
-
-
-        # if (step + 1) % 1000 == 0:
-        #     jax.debug.callback(
-        #         lambda p: save_checkpoint(...),
-        #         None,
-        #     )
-
-
-        # # GIF saving
-        # do_save_gif = ((step) % SAVE_GIF_INTERVAL) == 0 & SAVE_GIF
-        # cond_args = (traj.obs, step)
-        # def _trigger_save_callback(args):
-        #     _obs, _step = args
-        #     # define a tiny Python helper here that captures 'SAVE_DIR' from the outer scope
-        #     def _python_callback_wrapper(callback_args):
-        #         obs_val, step_val = callback_args
-        #         save_gif_callback((obs_val, step_val, SAVE_DIR))
-        #     jax.debug.callback(_python_callback_wrapper, (_obs, _step))
-
-        # jax.lax.cond(
-        #     do_save_gif,
-        #     _trigger_save_callback,
-        #     lambda x: None,
-        #     cond_args
-        # )
-
-
-
-        # TODO:NOT WORKING PROPERLY
-        # # Evaluation callback
-        # do_eval = jnp.logical_and(step > 0, step % EVAL_INTERVAL == 0)
-        # def maybe_eval(args):
-        #     actor_p, critic_p, step_val, do_eval = args
-        #     if do_eval:
-        #         eval_callback(actor_p, critic_p, step_val)
-
-        # jax.debug.callback(
-        #     maybe_eval,
-        #     (
-        #         actor_state.params,
-        #         critic_state.params,
-        #         step,
-        #         do_eval,
-        #     ),
-        #     # effect="io",
-        # )
-
-
         step = step + 1
-
 
         # traj.rewards shape: (T, N)
         episode_returns = jnp.sum(traj.rewards, axis=0)   # (N,)

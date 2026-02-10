@@ -11,7 +11,8 @@ import os
 from utils import *
 import wandb
 from algos.mappo_ippo_basic import *
-from algos.train_jax import train_jax
+# from algos.train_jax import train_jax
+from algos.jax_training import train_jax
 # from algos.ppo_utils import compute_gae, ppo_loss
 from evaluate import evaluate_policy
 from checkpoint import save_checkpoint, load_checkpoint
@@ -25,7 +26,7 @@ random_number = np.random.randint(0, 9999)
 print("random_number:", random_number)
 rng = jax.random.PRNGKey(random_number)
 # rng = jax.random.key(random_number)
-rng, reset_rng = jax.random.split(rng)
+# rng, reset_rng = jax.random.split(rng)
 env = make('clean_up',
         num_inner_steps=NUM_INNER_STEPS,
         num_outer_steps=NUM_OUTER_STEPS,
@@ -42,6 +43,14 @@ env = make('clean_up',
         inequity_aversion_target_agents=INEQUITY_AVERSION_TARGET_AGENTS
     )
 print("Environment loaded.")
+
+if env.shared_cleaning_rewards == True:
+    print("Using shared cleaning rewards.")
+elif env.shared_rewards == True:
+    print("Using shared rewards.")
+elif env.inequity_aversion == True:
+    print("Using inequity aversion rewards. Target agents:", INEQUITY_AVERSION_TARGET_AGENTS)
+
 
 # print(f"env config: {env.config}")
 # print(f"env : {env.observation_space}")
@@ -63,9 +72,9 @@ print(f"agent observation space: {agent_obs_space}")
 print(f"obs shape: {obs_shape}")
 
 
-root_dir = SAVE_DIR
-path = Path(root_dir + "/state_pics")
-path.mkdir(parents=True, exist_ok=True)
+# root_dir = SAVE_DIR
+# path = Path(root_dir + "/state_pics")
+# path.mkdir(parents=True, exist_ok=True)
 # # check if directory exists
 # path_exists = os.path.exists(path)
 # print(f"Directory exists: {path_exists}")
@@ -75,9 +84,9 @@ cumulative_total_reward = 0.0
 
 print("Starting JAX-native training...")
 
-obs, env_state = env.reset(reset_rng)
-print(f"obs type after reset: {type(obs)}")
-print(f"obs shape after reset: {obs.shape}")
+# obs, env_state = env.reset(reset_rng)
+# print(f"obs type after reset: {type(obs)}")
+# print(f"obs shape after reset: {obs.shape}")
 actor_state, critic_state = [None, None]
 step = 0
 # print(f"env_state after reset: {env_state}")
@@ -129,25 +138,25 @@ while step < NUM_OUTER_STEPS:
         critic=critic,
         actor_state=actor_state,
         critic_state=critic_state, 
-        obs=obs,
-        env_state=env_state,
-        start_step=step, # unused currently
+        # obs=obs,
+        # env_state=env_state,
+        step=step, 
         num_steps=EVAL_INTERVAL,  
     )
 
     # --- unpack ---
     actor_state = train_out["actor_state"]
     critic_state = train_out["critic_state"]
-    env_state = train_out["env_state"]
-    obs = train_out["obs"]
-    rng = train_out["rng"]
+    # env_state = train_out["env_state"]
+    # obs = train_out["obs"]
+    # rng = train_out["rng"]
     # step = train_out["step"]
     step = step + EVAL_INTERVAL
     print(f"Completed up to step {step}.")
 
 
     params = train_out["params"]
-    metrics = train_out["metrics"]
+    # metrics = train_out["metrics"]
     if step % SAVE_CHECKPOINT_INTERVAL == 0:
         save_checkpoint(params, SAVE_DIR, step=str(step)) # save every 10-20k steps or so
     # Evaluate
