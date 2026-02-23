@@ -17,7 +17,8 @@ class Transition(NamedTuple):
     values: jnp.ndarray      # (N,)
     actions: jnp.ndarray     # (N,)
     log_probs: jnp.ndarray   # (N,)
-    additional_info: dict    # Additional info from the environment
+    total_successful_cleans: jnp.ndarray  # scalar per step
+    total_apples_collected: jnp.ndarray   # scalar per step
 
 
 def wandb_log_callback_safe(payload, current_step):
@@ -46,6 +47,12 @@ def train_jax(
     """
     Main training loop 
     """
+    import psutil
+    import os
+    
+    process = psutil.Process(os.getpid())
+    rss_start = process.memory_info().rss / (1024**2)  # MB
+    print(f"\n[train_jax START] RSS: {rss_start:.1f} MB | step={step}")
     print("Starting training...")
 
     # def collect_rollout(carry):
@@ -81,6 +88,12 @@ def train_jax(
             step_rng, env_state, actions)
 
         done_flag = jnp.full((obs.shape[0],), done["__all__"])
+
+        # Extract only scalar values, discard large arrays in info
+        clean_count = info["total_successful_cleans"]
+        apple_count = info["total_apples_collected"]
+        total_successful_cleans=0
+        total_apples_collected=0
 
         # jax.debug.print(
         #     "done flag shape: {s}, done flag sample: {d}",
@@ -122,7 +135,10 @@ def train_jax(
                 values=jnp.stack(values),  # (T, N)
                 actions=jnp.stack(actions),  # (T, N)
                 log_probs=jnp.stack(logp),  # (T, N)
-                additional_info=info  # list of dicts
+                # total_successful_cleans=jnp.array([i.get('total_successful_cleans', 0) for i in info]),
+                # total_apples_collected=jnp.array([i.get('total_apples_collected', 0) for i in info])
+                total_successful_cleans=total_successful_cleans+clean_count,
+                total_apples_collected=total_apples_collected+apple_count,
             )
             new_obs, new_env_state = env.reset(rng)
             return transition, new_obs, new_env_state
@@ -140,7 +156,8 @@ def train_jax(
                 values=jnp.stack(values),  # (T, N)
                 actions=jnp.stack(actions),  # (T, N)
                 log_probs=jnp.stack(logp),  # (T, N)
-                additional_info=info  # list of dicts
+                total_successful_cleans=total_successful_cleans+clean_count,
+                total_apples_collected=total_apples_collected+apple_count,
             )
 
             obs = next_obs.copy()
@@ -234,7 +251,7 @@ def train_jax(
     #     num_steps//config["NUM_INNER_STEPS"],
     # )
     (final_actor_state, final_critic_state, env_state, terminal_obs, rng, next_step), trajectory_rollout = jax.lax.scan(
-        env_step, (actor_state, critic_state, env_state, obs, rng, step), None, config["EVAL_INTERVAL"]
+        env_step, (actor_state, critic_state, env_state, obs, rng, step), None, config["BATCH_SIZE"]
     )
 
     # jax.debug.breakpoint()
@@ -255,7 +272,13 @@ def train_jax(
     # advantages, targets = compute_adv_no_gae(trajectory_rollout, last_values, config)
     # adv_std = jnp.maximum(advantages.std(), 1e-4) #1e-8, 0.05
     normalized_advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-    
+
+    # jax.debug.print(
+    #     "trajectory rollout rwds length: {l}, advantages shape: {s}, targets shape: {t}",
+    #     l=len(trajectory_rollout.rewards),
+    #     s=advantages.shape,
+    #     t=targets.shape,
+    # )
     randomized_indices = jax.random.permutation(rng, trajectory_rollout.rewards.shape[0])
     trajectory_rollout = trajectory_rollout._replace(
         obs=trajectory_rollout.obs[randomized_indices],
@@ -283,11 +306,11 @@ def train_jax(
     # 2 loops here for NUM_EPOCHS and MINIBATCH_SIZE (5120/256 = 20 minibatches per epoch)
     # put randomized indices in the epoch loop so a different sample is updated every epoch
 
-    num_minibatches = config["EVAL_INTERVAL"] // config["MINIBATCH_SIZE"]
+    num_minibatches = config["BATCH_SIZE"] // config["MINIBATCH_SIZE"]
     batch_size = config["MINIBATCH_SIZE"]
 
     def reshape_batch(x):
-        if hasattr(x, "shape"): # Only reshape JAX arrays
+        if hasattr(x, "shape") and len(x.shape) > 0:  # Only reshape JAX arrays with shape
             return x.reshape((num_minibatches, batch_size) + x.shape[1:])
         return x
     
@@ -295,7 +318,7 @@ def train_jax(
     batched_advantages = reshape_batch(normalized_advantages)
     batched_targets = reshape_batch(targets)
 
-    def ppo_update(actor_state, critic_state, batch_rollout, batch_adv, batch_targets, config):
+    def ppo_update(actor_state, critic_state, batch_rollout, batch_adv, batch_targets, config, actor, critic, ALGO_NAME):
         obs = batch_rollout.obs
         world_state = batch_rollout.world_state
         actions = batch_rollout.actions
@@ -381,6 +404,10 @@ def train_jax(
         def update_minibatch(inner_carry, batch_data):
             curr_actor, curr_critic = inner_carry
             b_rollout, b_adv, b_targets = batch_data
+            # shuffle the batch data here for every epoch
+            # b_rollout = jax.tree_map(lambda x: x[jax.random.permutation(rng, x.shape[0])], b_rollout)
+            # b_adv = b_adv[jax.random.permutation(rng, b_adv.shape[0])]
+            # b_targets = b_targets[jax.random.permutation(rng, b_targets.shape[0])]
             
             # Call your existing PPO update function
             new_actor, new_critic, metrics = ppo_update(
@@ -389,7 +416,10 @@ def train_jax(
                 b_rollout, 
                 b_adv, 
                 b_targets, 
-                config
+                config,
+                actor,
+                critic,
+                ALGO_NAME
             )
 
             # jax.debug.print(
@@ -430,6 +460,9 @@ def train_jax(
         length=config["NUM_EPOCHS"]
     )
 
+    # Delete batched arrays immediately to free GPU/CPU memory
+    del batched_rollout, batched_advantages, batched_targets
+    jax.effects_barrier()
 
     # for i in range(config["NUM_EPOCHS"]):
     #     for j in range(config["EVAL_INTERVAL"]//config["MINIBATCH_SIZE"]):
@@ -444,40 +477,31 @@ def train_jax(
     episode_returns = jnp.sum(trajectory_rollout.rewards, axis=0)   # (N,)
     mean_episode_return = jnp.nanmean(episode_returns)
     total_episode_return = jnp.nansum(episode_returns)
-    traj_additional_info = trajectory_rollout.additional_info
-    # print("additional_info keys: ", additional_info.keys())
-    # additional_info keys:  dict_keys(['clean_action_info', 'cleaned_water', 'original_rewards', 'shaped_rewards', 'shared_cleaning_reward', 'total_apples_collected', 'total_successful_cleans'])
-    # if SHARED_CLEANING_REWARDS==True:
+    # Extract scalar info from trajectory
     additional_info_wandb = {
-        "total_successful_cleans": jnp.sum(traj_additional_info["total_successful_cleans"]),
-        "total_apples_collected": jnp.sum(traj_additional_info["total_apples_collected"]),
+        "total_successful_cleans": jnp.sum(trajectory_rollout.total_successful_cleans),
+        "total_apples_collected": jnp.sum(trajectory_rollout.total_apples_collected),
     }
-    # print("additional_info sample: ", {k: v[0] for k, v in additional_info.items()})
 
-    # to add to payload per episode:
-    # - number of successful cleans
-    # - number of apples collected
-    # - per agent returns?
-
-    # ent_coef_log = jnp.interp(
-    #     step,
-    #     np.array([0, config["NUM_OUTER_STEPS"]]),
-    #     np.array([config["ENT_COEF_START"], config["ENT_COEF_END"]])
-    # )
-
+    # Compute log payload and convert to Python scalars immediately
     log_payload = {
-        "train/mean_policy_loss": all_metrics["policy_loss"].mean(),
-        "train/mean_value_loss": all_metrics["value_loss"].mean(),
-        "train/mean_entropy": all_metrics["entropy"].mean(),
-        "train/mean_total_loss": all_metrics["total_loss"].mean(),
-        "train/mean_episode_return": mean_episode_return,
-        "train/total_episode_return": total_episode_return,
-        **{f"train/agent_{i}_episode_return": episode_returns[i] for i in range(NUM_AGENTS)},
-        "train/total_episode_return": jnp.sum(episode_returns),
-        **{f"train/{k}": v for k, v in additional_info_wandb.items()}
+        "train/mean_policy_loss": float(jax.device_get(all_metrics["policy_loss"].mean())),
+        "train/mean_value_loss": float(jax.device_get(all_metrics["value_loss"].mean())),
+        "train/mean_entropy": float(jax.device_get(all_metrics["entropy"].mean())),
+        "train/mean_total_loss": float(jax.device_get(all_metrics["total_loss"].mean())),
+        "train/mean_episode_return": float(jax.device_get(mean_episode_return)),
+        "train/total_episode_return": float(jax.device_get(total_episode_return)),
+        **{f"train/agent_{i}_episode_return": float(jax.device_get(episode_returns[i])) for i in range(NUM_AGENTS)},
+        **{f"train/{k}": int(jax.device_get(v)) for k, v in additional_info_wandb.items()}
     }
 
-    # if log_wandb:
+    # Delete all large intermediate arrays BEFORE wandb callback
+    del trajectory_rollout, all_metrics, advantages, targets, normalized_advantages, episode_returns, mean_episode_return, total_episode_return, additional_info_wandb
+    import gc
+    gc.collect()
+    jax.effects_barrier()
+    # jax.clear_backends()  # Force JAX to release allocated buffers
+    # gc.collect()  # Run GC again after JAX cleanup
     # jax.debug.callback(wandb_log_callback, metrics)
     # def wandb_log_callback_safe(payload):
     #     payload = jax.tree_map(jax.device_get, payload)
@@ -488,14 +512,22 @@ def train_jax(
     if LOG_WANDB:
         jax.debug.callback(wandb_log_callback_safe, log_payload, current_step=next_step)
 
-    
+    # # print shape of actor_state and critic_state params if more than expected 
+    # if len(final_actor_state.params) > 10:
+    #     print("Actor state params: ", final_actor_state.params)
+    # if len(final_critic_state.params) > 10:
+    #     print("Critic state params: ", final_critic_state.params)
+
+    rss_end = process.memory_info().rss / (1024**2)  # MB
+    delta = rss_end - rss_start
+    print(f"[train_jax END] RSS: {rss_end:.1f} MB | Δ: {delta:+.1f} MB")
 
     return {
     "params": {
         "actor": final_actor_state.params,
         "critic": final_critic_state.params,
     },
-    "metrics": all_metrics,
+    # "metrics": all_metrics,
     "actor_state": final_actor_state,
     "critic_state": final_critic_state,
     "env_state": env_state,

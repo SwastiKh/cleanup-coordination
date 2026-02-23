@@ -16,6 +16,7 @@ from algos.jax_training import train_jax
 # from algos.ppo_utils import compute_gae, ppo_loss
 from evaluate import evaluate_policy
 from checkpoint import save_checkpoint, load_checkpoint
+import sys
 
 import optax
 from flax.training.train_state import TrainState
@@ -79,8 +80,8 @@ print(f"obs shape: {obs_shape}")
 # path_exists = os.path.exists(path)
 # print(f"Directory exists: {path_exists}")
 
-total_reward_per_agent = [0.0 for _ in range(NUM_AGENTS)]
-cumulative_total_reward = 0.0
+# total_reward_per_agent = [0.0 for _ in range(NUM_AGENTS)]
+# cumulative_total_reward = 0.0
 
 print("Starting JAX-native training...")
 
@@ -92,6 +93,7 @@ step = 0
 # print(f"env_state after reset: {env_state}")
 
 action_dim = env.action_space(0).n
+
 if ALGO_NAME == "MAPPO":
     actor = MAPPOActor(action_dim=action_dim, encoder_type=ENCODER.lower())
     critic = MAPPOCritic(encoder_type=ENCODER.lower())
@@ -99,17 +101,27 @@ elif ALGO_NAME == "IPPO":
     actor = IPPOActor(action_dim=action_dim, encoder_type=ENCODER.lower())
     critic = IPPOCritic(encoder_type=ENCODER.lower())
 
-rng, a_rng, c_rng = jax.random.split(rng, 3)
+if USE_CHECKPOINTS:
+    print(f"Loading checkpoint from {LOAD_DIR}...")
+    checkpoint_data = load_checkpoint(LOAD_DIR)
+    print("Checkpoint loaded. Keys in checkpoint data:", checkpoint_data.keys())
+    actor_params = checkpoint_data["actor"]
+    critic_params = checkpoint_data["critic"]
+    step = int(LOAD_DIR.split("checkpoint_step_")[1].split(".pkl")[0])  # Extract step number from filename
+    print(f"Checkpoint loaded. Resuming from step {step}.")
+else:
+    print("No checkpoint loading. Initializing new model.")
+    rng, a_rng, c_rng = jax.random.split(rng, 3)
 
-obs_shape = env.observation_space()[0].shape
-dummy_obs = jnp.zeros((1,) + obs_shape)
-# initialize actor params - CNN weights, Dense(64) weights, Action logits weights
-actor_params = actor.init(a_rng, dummy_obs) 
-dummy_world = jnp.zeros((1,) + obs_shape[:-1] + (obs_shape[-1] * NUM_AGENTS,))
-if ALGO_NAME == "MAPPO":
-    critic_params = critic.init(c_rng, dummy_world)
-elif ALGO_NAME == "IPPO":
-    critic_params = critic.init(c_rng, dummy_obs)
+    obs_shape = env.observation_space()[0].shape
+    dummy_obs = jnp.zeros((1,) + obs_shape)
+    # initialize actor params - CNN weights, Dense(64) weights, Action logits weights
+    actor_params = actor.init(a_rng, dummy_obs) 
+    dummy_world = jnp.zeros((1,) + obs_shape[:-1] + (obs_shape[-1] * NUM_AGENTS,))
+    if ALGO_NAME == "MAPPO":
+        critic_params = critic.init(c_rng, dummy_world)
+    elif ALGO_NAME == "IPPO":
+        critic_params = critic.init(c_rng, dummy_obs)
 
 
 actor_state = TrainState.create(
@@ -126,9 +138,14 @@ critic_state = TrainState.create(
     tx=optax.adam(CRITIC_LR)
 )
 
+if USE_CHECKPOINTS and step==NUM_OUTER_STEPS:
+    additional_steps = NUM_OUTER_STEPS
+else:
+    additional_steps = 0
 
-while step < NUM_OUTER_STEPS:
-    print(f"\n=== Training steps {step} → {step + EVAL_INTERVAL} ===")
+
+while step < NUM_OUTER_STEPS+additional_steps:
+    print(f"\n=== Training steps {step} → {step + BATCH_SIZE} ===")
 
     train_out = train_jax(
         rng = rng,
@@ -141,8 +158,10 @@ while step < NUM_OUTER_STEPS:
         # obs=obs,
         # env_state=env_state,
         step=step, 
-        num_steps=EVAL_INTERVAL,  
+        num_steps=BATCH_SIZE,  
     )
+    # print(f"[DEBUG] env_state size: {sys.getsizeof(train_out['env_state']) / 1024:.1f} KB")
+    # print(f"[DEBUG] obs size: {train_out['obs'].nbytes / 1024:.1f} KB")  
 
     # --- unpack ---
     actor_state = train_out["actor_state"]
@@ -151,23 +170,33 @@ while step < NUM_OUTER_STEPS:
     # obs = train_out["obs"]
     # rng = train_out["rng"]
     # step = train_out["step"]
-    step = step + EVAL_INTERVAL
+    step = step + BATCH_SIZE
     print(f"Completed up to step {step}.")
 
 
     params = train_out["params"]
     # metrics = train_out["metrics"]
+
+    # print(len(actor_state.params), "actor_state params length")
+    # print(len(critic_state.params), "critic_state params length")
+    # print("Actor state params keys:", actor_state.params.keys())
+    # print("Critic state params keys:", critic_state.params.keys())
+    # print("all params keys:", params.keys())
+    # print("Actor params keys:", params["actor"].keys())
+    # print("Critic params keys:", params["critic"].keys())
+
     if step % SAVE_CHECKPOINT_INTERVAL == 0:
         save_checkpoint(params, SAVE_DIR, step=str(step)) # save every 10-20k steps or so
     # Evaluate
-    evaluate_policy(
-        env,
-        params,
-        num_steps=NUM_EVAL_STEPS,
-        save_dir=SAVE_DIR,
-        log_wandb=LOG_WANDB,
-        current_step=step,
-    )
+    if step % EVAL_INTERVAL == 0:
+        evaluate_policy(
+            env,
+            params,
+            num_steps=NUM_EVAL_STEPS,
+            save_dir=SAVE_DIR,
+            log_wandb=LOG_WANDB,
+            current_step=step,
+        )
 
     # print(f"metrics to be logged: {metrics}")
     # wandb_log_callback(metrics)

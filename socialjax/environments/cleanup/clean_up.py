@@ -205,8 +205,8 @@ class Clean_up(MultiAgentEnv):
         delayStartOfDirtSpawning=50, # 50
         jit=True,
         
-        # obs_size=11,
-        obs_size=7,
+        obs_size=11,
+        # obs_size=7,
         cnn=True,
 
         # map_ASCII = [
@@ -1444,7 +1444,8 @@ class Clean_up(MultiAgentEnv):
             elif self.shared_cleaning_rewards:
                 rewards = jnp.zeros((self.num_agents, 1))
                 original_rewards = jnp.where(apple_matches, 1, rewards)  * self.num_agents
-                shared_cleaning_reward = jnp.float32(num_successful_cleans) / self.num_agents
+                # shared_cleaning_reward = jnp.float32(num_successful_cleans) / self.num_agents
+                shared_cleaning_reward = jnp.float32(num_successful_cleans)
                 # add total cleaning reward to all agents
                 rewards = original_rewards + shared_cleaning_reward
                 info = {
