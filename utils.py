@@ -6,8 +6,8 @@ LOG_WANDB = True
 NUM_AGENTS=3
 # GRID_SIZE = (18,25) #make it smaller (maybe half the size) for faster training
 NUM_INNER_STEPS=256 #256
-NUM_OUTER_STEPS=5120000 #10e4
-BATCH_SIZE = 25600
+NUM_OUTER_STEPS=10240000 #10e4
+BATCH_SIZE = 51200
 EVAL_INTERVAL = 51200 # keep multiple of 256
 NUM_EVAL_STEPS = 256  # Number of steps during evaluation
 SAVE_CHECKPOINT_INTERVAL = 512000  # Save model checkpoint every n outer steps
@@ -19,7 +19,7 @@ THRESHOLD_DEPLETION=0.32  # 0.4 #deepmind paper- 0.32, human=0.6
 THRESHOLD_RESTORATION=0.2 # 0.0 #deepmind paper- 0.0, human=0.3
 DIRT_SPAWN_PROBABILITY=0.5  # 0.5 #deepmind paper- 0.5, human=0.6
 DELAY_START_OF_DIRT_SPAWNING=50  # 50
-REWARD_STRUCTURE = "SHARED_CLEANING_REWARDS_eval200_obs11"  # "SHARED" or "INEQUITY_AVERSION" or "BASIC_ENV"
+REWARD_STRUCTURE = "SHARED_CLEANING_REWARDS_testing_memory"  # "SHARED" or "INEQUITY_AVERSION" or "BASIC_ENV"
 SHARED_CLEANING_REWARDS = True  # True or False
 SHARED_REWARDS = False  # True or False
 INEQUITY_AVERSION = False  # True or False
