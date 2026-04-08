@@ -1,0 +1,31 @@
+program: cleanup-coordination/jax_cleanup.py
+entity: swasti
+project: mthesis
+name: cleanup_bayes_sweep
+method: bayes
+metric:
+  goal: maximize
+  name: eval/episode_return_total
+parameters:
+  OBS_SIZE:
+    values: [5, 7, 9, 11, 13, 15]
+  BATCH_SIZE:
+    values: [51200, 25600, 12800]
+  MINIBATCH_SIZE:
+    values: [128, 256, 512]
+  NUM_EPOCHS:
+    distribution: int_uniform
+    min: 2
+    max: 6
+  ACTOR_LR:
+    distribution: uniform
+    min: 1e-4
+    max: 3e-2
+  CRITIC_LR:
+    distribution: uniform
+    min: 1e-4
+    max: 3e-2
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}

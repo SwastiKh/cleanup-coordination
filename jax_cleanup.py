@@ -58,12 +58,35 @@ elif env.inequity_aversion == True:
 
 
 if LOG_WANDB:
+    wandb.login()
     run = wandb.init(
         entity="swasti",
         project="mthesis",
         name=SAVE_DIR,
         config=config,
     )
+
+run_config = dict(config)
+if LOG_WANDB and wandb.run is not None:
+    sweep_cfg = wandb.config
+    for key in ["OBS_SIZE", "MINIBATCH_SIZE", "NUM_EPOCHS", "ACTOR_LR", "CRITIC_LR"]:
+        if key in sweep_cfg:
+            run_config[key] = sweep_cfg[key]
+    if "BATCH_SIZE" in sweep_cfg:
+        run_config["BATCH_SIZE"] = sweep_cfg["BATCH_SIZE"]
+    elif "batch_size" in sweep_cfg:
+        run_config["BATCH_SIZE"] = sweep_cfg["batch_size"]
+
+BATCH_SIZE = int(run_config["BATCH_SIZE"])
+NUM_EPOCHS = int(run_config["NUM_EPOCHS"])
+MINIBATCH_SIZE = int(run_config["MINIBATCH_SIZE"])
+ACTOR_LR = float(run_config["ACTOR_LR"])
+CRITIC_LR = float(run_config["CRITIC_LR"])
+OBS_SIZE = int(run_config.get("OBS_SIZE", OBS_SIZE))
+
+RUN_SAVE_DIR = SAVE_DIR
+if LOG_WANDB and wandb.run is not None:
+    RUN_SAVE_DIR = f"{SAVE_DIR}_{wandb.run.id}"
 
 
 print(f"env observation space: {env.observation_space()}")
@@ -150,7 +173,7 @@ while step < NUM_OUTER_STEPS+additional_steps:
     train_out = train_jax(
         rng = rng,
         env=env,
-        config=config,
+        config=run_config,
         actor=actor,
         critic=critic,
         actor_state=actor_state,
@@ -186,14 +209,14 @@ while step < NUM_OUTER_STEPS+additional_steps:
     # print("Critic params keys:", params["critic"].keys())
 
     if step % SAVE_CHECKPOINT_INTERVAL == 0:
-        save_checkpoint(params, SAVE_DIR, step=str(step)) # save every 10-20k steps or so
+        save_checkpoint(params, RUN_SAVE_DIR, step=str(step)) # save every 10-20k steps or so
     # Evaluate
     if step % EVAL_INTERVAL == 0:
         evaluate_policy(
             env,
             params,
             num_steps=NUM_EVAL_STEPS,
-            save_dir=SAVE_DIR,
+            save_dir=RUN_SAVE_DIR,
             log_wandb=LOG_WANDB,
             current_step=step,
         )
@@ -206,17 +229,20 @@ print("Training finished.")
 
 #PUT INSIDE LOOP ALSO
 # # Save final checkpoint explicitly
-save_checkpoint(params, SAVE_DIR, step="final")
+save_checkpoint(params, RUN_SAVE_DIR, step="final")
 
 # Evaluate
 evaluate_policy(
     env,
     params,
     num_steps=NUM_INNER_STEPS,
-    save_dir=SAVE_DIR,
+    save_dir=RUN_SAVE_DIR,
     log_wandb=LOG_WANDB,
     current_step="final",
 )
+
+if LOG_WANDB and wandb.run is not None:
+    wandb.finish()
 
 
 
