@@ -90,6 +90,81 @@ class CNN(nn.Module):
         return x
 
 
+# create LSTM from scratch to modify it's elements
+# class LSTMEncoder(nn.Module):
+#     hidden_dim: int = 64
+
+#     @nn.compact
+#     def __call__(self, input, hidden):
+#         lstm = nn.LSTMCell()
+#         h, y = lstm(hidden, input)
+#         return y, h
+
+#     def init_hidden(self, batch_size):
+#         return nn.LSTMCell.initialize_carry(jax.random.PRNGKey(0), (batch_size,), self.hidden_dim)
+
+#     def init_carry(self, batch_size):
+#         return nn.LSTMCell.initialize_carry(jax.random.PRNGKey(0), (batch_size,), self.hidden_dim)
+
+# class LSTMScratch:
+#     def __init__(self, input_size, hidden_size, output_size, num_epochs, learning_rate):
+#         # Hyperparameters
+#         self.learning_rate = learning_rate
+#         self.hidden_size = hidden_size
+#         self.num_epochs = num_epochs
+
+#         # Forget Gate
+#         self.wf = initWeights(input_size, hidden_size)
+#         self.bf = np.zeros((hidden_size, 1))
+
+#         # Input Gate
+#         self.wi = initWeights(input_size, hidden_size)
+#         self.bi = np.zeros((hidden_size, 1))
+
+#         # Candidate Gate
+#         self.wc = initWeights(input_size, hidden_size)
+#         self.bc = np.zeros((hidden_size, 1))
+
+#         # Output Gate
+#         self.wo = initWeights(input_size, hidden_size)
+#         self.bo = np.zeros((hidden_size, 1))
+
+#         # Final Gate
+#         self.wy = initWeights(hidden_size, output_size)
+#         self.by = np.zeros((output_size, 1))
+
+#     def reset(self):
+#         self.concat_inputs = {}
+
+#         self.hidden_states = {-1:np.zeros((self.hidden_size, 1))}
+#         self.cell_states = {-1:np.zeros((self.hidden_size, 1))}
+
+#         self.activation_outputs = {}
+#         self.candidate_gates = {}
+#         self.output_gates = {}
+#         self.forget_gates = {}
+#         self.input_gates = {}
+#         self.outputs = {}
+
+#     def forward(self, inputs):
+#         self.reset()
+
+#         outputs = []
+#         for q in range(len(inputs)):
+#             self.concat_inputs[q] = np.concatenate((self.hidden_states[q - 1], inputs[q]))
+
+#             self.forget_gates[q] = sigmoid(np.dot(self.wf, self.concat_inputs[q]) + self.bf)
+#             self.input_gates[q] = sigmoid(np.dot(self.wi, self.concat_inputs[q]) + self.bi)
+#             self.candidate_gates[q] = tanh(np.dot(self.wc, self.concat_inputs[q]) + self.bc)
+#             self.output_gates[q] = sigmoid(np.dot(self.wo, self.concat_inputs[q]) + self.bo)
+
+#             self.cell_states[q] = self.forget_gates[q] * self.cell_states[q - 1] + self.input_gates[q] * self.candidate_gates[q]
+#             self.hidden_states[q] = self.output_gates[q] * tanh(self.cell_states[q])
+
+#             outputs += [np.dot(self.wy, self.hidden_states[q]) + self.by]
+
+#         return outputs
+
 # class MAPPOActor(nn.Module):
 #     action_dim: int
 #     encoder_type: str = "cnn"   # mlp | cnn | rnn
@@ -192,8 +267,14 @@ class IPPOActor(nn.Module):
 
         embedding = CNN(self.activation)(obs)
 
-        x = nn.Dense(64, kernel_init=orthogonal(jnp.sqrt(2)),
-                     bias_init=constant(0.0))(embedding)
+        lstm_out, hidden = nn.LSTM()(embedding, jnp.zeros((embedding.shape[0], self.hidden_dim)))
+
+        x = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                     bias_init=constant(0.0))(lstm_out)
+        x = nn.relu(x)
+
+        x = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                     bias_init=constant(0.0))(x)
         x = nn.relu(x)
 
         logits = nn.Dense(
@@ -215,9 +296,15 @@ class IPPOCritic(nn.Module):
 
         embedding = CNN(self.activation)(obs)
 
-        x = nn.Dense(64, kernel_init=orthogonal(jnp.sqrt(2)),
-                     bias_init=constant(0.0))(embedding)
+        lstm_out, hidden = nn.LSTM()(embedding, jnp.zeros((embedding.shape[0], self.hidden_dim)))
+
+
+        x = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                     bias_init=constant(0.0))(lstm_out)
         x = nn.relu(x)
+
+        x = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                     bias_init=constant(0.0))(x)
 
         value = nn.Dense(
             1,
@@ -235,12 +322,19 @@ class MAPPOActor(nn.Module):
 
     @nn.compact
     def __call__(self, obs):
+        self.hidden_dim = 128
         # obs: (N, H, W, C) or (batch, H, W, C)
 
         embedding = CNN(self.activation)(obs)
 
-        x = nn.Dense(64, kernel_init=orthogonal(jnp.sqrt(2)),
-                     bias_init=constant(0.0))(embedding)
+        lstm_out, hidden = nn.LSTM()(embedding, jnp.zeros((embedding.shape[0], self.hidden_dim)))
+
+        x = nn.Dense(self.hidden_dim, kernel_init=orthogonal(jnp.sqrt(2)),
+                     bias_init=constant(0.0))(lstm_out)
+        x = nn.relu(x)
+
+        x = nn.Dense(self.hidden_dim, kernel_init=orthogonal(jnp.sqrt(2)),
+                     bias_init=constant(0.0))(x)
         x = nn.relu(x)
 
         logits = nn.Dense(
@@ -262,8 +356,14 @@ class MAPPOCritic(nn.Module):
 
         embedding = CNN(self.activation)(world_state)
 
-        x = nn.Dense(64, kernel_init=orthogonal(jnp.sqrt(2)),
-                     bias_init=constant(0.0))(embedding)
+        lstm_out, hidden = nn.LSTM()(embedding, jnp.zeros((embedding.shape[0], self.hidden_dim)))
+
+        x = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                     bias_init=constant(0.0))(lstm_out)
+        x = nn.relu(x)
+
+        x = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                     bias_init=constant(0.0))(x)
         x = nn.relu(x)
 
         value = nn.Dense(
