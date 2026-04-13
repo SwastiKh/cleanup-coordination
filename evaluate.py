@@ -11,12 +11,13 @@ from utils import *
 
 
 def make_policy_fn(actor):
-    def policy_fn(actor_params, obs, rng, deterministic):
-        pi, _ = actor.apply(actor_params, obs)
+    def policy_fn(actor_params, obs, rnn_state, rng, deterministic):
+        # OLD: pi, _ = actor.apply(actor_params, obs)
+        pi, new_rnn_state = actor.apply(actor_params, obs, rnn_state)
         if deterministic:
-            return jnp.argmax(pi.logits, axis=-1)
+            return jnp.argmax(pi.logits, axis=-1), new_rnn_state
         else:
-            return pi.sample(seed=rng)
+            return pi.sample(seed=rng), new_rnn_state
     return policy_fn
 
 
@@ -58,6 +59,7 @@ def evaluate_policy(
 
 
         policy_fn_jit = jax.jit(make_policy_fn(actor), static_argnames=("deterministic",),)
+        actor_rnn_state = (jnp.zeros((num_agents, 64)), jnp.zeros((num_agents, 64)))
 
         
         frames = []
@@ -91,9 +93,17 @@ def evaluate_policy(
             # else:
             #     actions = pi.sample(seed=act_rng)
 
-            actions = policy_fn_jit(
+            # OLD:
+            # actions = policy_fn_jit(
+            #     params["actor"],
+            #     obs_batch,
+            #     act_rng,
+            #     deterministic,
+            # )
+            actions, actor_rnn_state = policy_fn_jit(
                 params["actor"],
                 obs_batch,
+                actor_rnn_state,
                 act_rng,
                 deterministic,
             )
@@ -115,6 +125,7 @@ def evaluate_policy(
                     frames.append(np.asarray(img))
 
             if done["__all__"]:
+                actor_rnn_state = (jnp.zeros((num_agents, 64)), jnp.zeros((num_agents, 64)))
                 break
 
         if SAVE_GIF and ep==0:
