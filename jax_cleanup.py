@@ -151,37 +151,56 @@ else:
         else (jnp.zeros((NUM_AGENTS, 64)), jnp.zeros((NUM_AGENTS, 64)))
     )
     # initialize actor params - CNN weights, Dense(64) weights, Action logits weights
-    # OLD: actor_params = actor.init(a_rng, dummy_obs)
-    actor_params = actor.init(a_rng, actor_init_obs, actor_init_rnn)
+    if USE_LSTM:
+        actor_params = actor.init(a_rng, actor_init_obs, actor_init_rnn)
+    else:
+        actor_params = actor.init(a_rng, dummy_obs)
     dummy_world = jnp.zeros((1,) + obs_shape[:-1] + (obs_shape[-1] * NUM_AGENTS,))
     if ALGO_NAME == "MAPPO":
-        # OLD: critic_params = critic.init(c_rng, dummy_world)
-        critic_params = critic.init(c_rng, dummy_world, critic_init_rnn)
+        if USE_LSTM:
+            critic_params = critic.init(c_rng, dummy_world, critic_init_rnn)
+        else:
+            critic_params = critic.init(c_rng, dummy_world)
     elif ALGO_NAME == "IPPO":
-        # OLD: critic_params = critic.init(c_rng, dummy_obs)
-        critic_params = critic.init(c_rng, actor_init_obs, critic_init_rnn)
+        if USE_LSTM:
+            critic_params = critic.init(c_rng, actor_init_obs, critic_init_rnn)
+        else:
+            critic_params = critic.init(c_rng, dummy_obs)
 
-# actor_state = TrainState.create(
-actor_state = RNNTrainState.create(
-    apply_fn=actor.apply,
-    params=actor_params,
-    # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
-    tx=optax.adam(ACTOR_LR),
-    rnn_state=(jnp.zeros((NUM_AGENTS, 64)), jnp.zeros((NUM_AGENTS, 64)))  # Initial LSTM state (hidden, cell)
-)
-# critic_state = TrainState.create(
-critic_state = RNNTrainState.create(
-    apply_fn=critic.apply,
-    params=critic_params,
-    # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
-    tx=optax.adam(CRITIC_LR),
-    # OLD: rnn_state=(jnp.zeros((NUM_AGENTS, 128)), jnp.zeros((NUM_AGENTS, 128)))
-    rnn_state=(
-        (jnp.zeros((1, 64)), jnp.zeros((1, 64)))
-        if ALGO_NAME == "MAPPO"
-        else (jnp.zeros((NUM_AGENTS, 64)), jnp.zeros((NUM_AGENTS, 64)))
-    )  # Initial LSTM state (hidden, cell)
-)
+if USE_LSTM:
+    print("Using LSTM-based actor and critic.")
+    # actor_state = TrainState.create(
+    actor_state = RNNTrainState.create(
+        apply_fn=actor.apply,
+        params=actor_params,
+        # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
+        tx=optax.adam(ACTOR_LR),
+        rnn_state=(jnp.zeros((NUM_AGENTS, 128)), jnp.zeros((NUM_AGENTS, 128)))  # Initial LSTM state (hidden, cell)
+    )
+    # critic_state = TrainState.create(
+    critic_state = RNNTrainState.create(
+        apply_fn=critic.apply,
+        params=critic_params,
+        # tx=optax.adam(LEARNING_RATE) #can change to adamw because relu unavailable on optax
+        tx=optax.adam(CRITIC_LR),
+        rnn_state=(
+            (jnp.zeros((1, 128)), jnp.zeros((1, 128)))
+            if ALGO_NAME == "MAPPO"
+            else (jnp.zeros((NUM_AGENTS, 128)), jnp.zeros((NUM_AGENTS, 128)))
+        )  # Initial LSTM state (hidden, cell)
+    )
+else:
+    print("Using non-recurrent actor and critic.")
+    actor_state = TrainState.create(
+        apply_fn=actor.apply,
+        params=actor_params,
+        tx=optax.adam(ACTOR_LR),
+    )
+    critic_state = TrainState.create(
+        apply_fn=critic.apply,
+        params=critic_params,
+        tx=optax.adam(CRITIC_LR),
+    )
 
 if USE_CHECKPOINTS and step==NUM_OUTER_STEPS:
     additional_steps = NUM_OUTER_STEPS

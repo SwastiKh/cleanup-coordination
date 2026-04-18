@@ -19,7 +19,7 @@ THRESHOLD_DEPLETION=0.32  # 0.4 #deepmind paper- 0.32, human=0.6
 THRESHOLD_RESTORATION=0.2 # 0.0 #deepmind paper- 0.0, human=0.3
 DIRT_SPAWN_PROBABILITY=0.5  # 0.5 #deepmind paper- 0.5, human=0.6
 DELAY_START_OF_DIRT_SPAWNING=50  # 50
-RUN_NAME = "share_clean_rwd_simple_LSTM_bigEnv_obs11"  # "SHARED" or "INEQUITY_AVERSION" or "BASIC_ENV"
+RUN_NAME = "share_clean_rwd_no_LSTM_bigEnv_obs11"  # "SHARED" or "INEQUITY_AVERSION" or "BASIC_ENV"
 SHARED_CLEANING_REWARDS = True  # True or False
 SHARED_REWARDS = False  # True or False
 INEQUITY_AVERSION = False  # True or False
@@ -28,8 +28,9 @@ INEQUITY_AVERSION_TARGET_AGENTS = None  # None or list of agent indices
 OBS_SIZE = 7 #default is 11 for bigger env 
 
 # Algo settings
-ALGO_NAME = "MAPPO" # "RANDOM" or "PPO" or "MAPPO" or "IPPO"
+ALGO_NAME = "IPPO" # "RANDOM" or "PPO" or "MAPPO" or "IPPO"
 ENCODER = "CNN"  # "MLP" or "CNN" or "RNN"
+USE_LSTM = False
 
 # PPO 
 ACTOR_LR = 3e-4
@@ -90,6 +91,7 @@ config = {
     "ENT_COEF": ENT_COEF,
     "VF_COEF": VF_COEF,
     "ENCODER": ENCODER,
+    "USE_LSTM": USE_LSTM,
 }
 
 def wandb_log_callback(metrics):

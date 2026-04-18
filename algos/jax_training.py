@@ -76,13 +76,21 @@ def train_jax(
         world_state = jnp.concatenate(obs, axis=-1)[None, ...]
         if ALGO_NAME == "MAPPO":
             # Central critic
-            values, new_critic_rnn_state = critic.apply(critic_state.params, world_state, critic_state.rnn_state)
-            values = jnp.repeat(values, obs.shape[0])
+            if USE_LSTM:
+                values, new_critic_rnn_state = critic.apply(critic_state.params, world_state, critic_state.rnn_state)
+                values = jnp.repeat(values, obs.shape[0])
+            else:
+                values, _ = critic.apply(critic_state.params, world_state, _)
+                values = jnp.repeat(values, obs.shape[0])
         elif ALGO_NAME == "IPPO":
-            values, new_critic_rnn_state = critic.apply(critic_state.params, obs, critic_state.rnn_state)
+            if USE_LSTM:
+                values, new_critic_rnn_state = critic.apply(critic_state.params, obs, critic_state.rnn_state)
+            else:
+                values, _ = critic.apply(critic_state.params, obs, _)
 
-        actor_state = actor_state.replace(rnn_state=new_rnn_state)
-        critic_state = critic_state.replace(rnn_state=new_critic_rnn_state)
+        if USE_LSTM:
+            actor_state = actor_state.replace(rnn_state=new_rnn_state)
+            critic_state = critic_state.replace(rnn_state=new_critic_rnn_state)
 
 
         
@@ -91,9 +99,6 @@ def train_jax(
 
         done_flag = jnp.full((obs.shape[0],), done["__all__"])
 
-        # OLD:
-        # clean_count = info["total_successful_cleans"]
-        # apple_count = info["total_apples_collected"]
         clean_count = jnp.asarray(info["total_successful_cleans"], dtype=running_total_successful_cleans.dtype)
         apple_count = jnp.asarray(info["total_apples_collected"], dtype=running_total_apples_collected.dtype)
         # total_successful_cleans = 0
@@ -159,7 +164,6 @@ def train_jax(
                 log_probs=jnp.stack(logp),  # (T, N)
                 # total_successful_cleans=jnp.array([i.get('total_successful_cleans', 0) for i in info]),
                 # total_apples_collected=jnp.array([i.get('total_apples_collected', 0) for i in info])
-                # OLD:
                 # total_successful_cleans=total_successful_cleans+clean_count,
                 # total_apples_collected=total_apples_collected+apple_count,
                 total_successful_cleans=clean_count,
@@ -184,7 +188,6 @@ def train_jax(
                 values=jnp.stack(values),  # (T, N)
                 actions=jnp.stack(actions),  # (T, N)
                 log_probs=jnp.stack(logp),  # (T, N)
-                # OLD:
                 # total_successful_cleans=total_successful_cleans+clean_count,
                 # total_apples_collected=total_apples_collected+apple_count,
                 total_successful_cleans=clean_count,
@@ -292,9 +295,6 @@ def train_jax(
             obs,
             rng,
             step,
-            # OLD:
-            # jnp.array(0, dtype=jnp.int32),
-            # jnp.array(0, dtype=jnp.int32),
             jnp.array(0.0, dtype=jnp.float32),
             jnp.array(0.0, dtype=jnp.float32),
         ),
@@ -309,10 +309,16 @@ def train_jax(
     if ALGO_NAME == "MAPPO":
         world_state = jnp.concatenate(terminal_obs, axis=-1)[None, ...]  # (1, H, W, C*N)
         # Central critic
-        last_values, _ = critic.apply(final_critic_state.params, world_state, final_critic_state.rnn_state)
+        if USE_LSTM:
+            last_values, _ = critic.apply(final_critic_state.params, world_state, final_critic_state.rnn_state)
+        else:
+            last_values, _ = critic.apply(final_critic_state.params, world_state, _)
         last_values = jnp.repeat(last_values, terminal_obs.shape[0])     # (N,)
     elif ALGO_NAME == "IPPO":
-        last_values, _ = critic.apply(final_critic_state.params, terminal_obs, final_critic_state.rnn_state)
+        if USE_LSTM:
+            last_values, _ = critic.apply(final_critic_state.params, terminal_obs, final_critic_state.rnn_state)
+        else:
+            last_values, _ = critic.apply(final_critic_state.params, terminal_obs, _)
 
 
     # advantages, targets = compute_gae(traj, config)
@@ -378,7 +384,7 @@ def train_jax(
 
         T, N = actions.shape
 
-        # OLD (non-sequence recurrent path):
+        # non-sequence recurrent path
         # obs_flat = obs.reshape((T * N,) + obs.shape[2:])
         # actions_flat = actions.reshape((T * N,))
         # logp_old_flat = logp_old.reshape((T * N,))
@@ -388,7 +394,7 @@ def train_jax(
         world_state_seq = world_state.squeeze(axis=1)
 
         def loss_fn(actor_params, critic_params):
-            # OLD (non-sequence recurrent path):
+            # non-sequence recurrent path
             # pi, new_rnn_state = actor.apply(actor_params, obs_flat, actor_state.rnn_state)
             # logp = pi.log_prob(actions_flat)
             # ratio = jnp.exp(logp - logp_old_flat)
@@ -414,23 +420,30 @@ def train_jax(
                 entropy_t = jnp.mean(pi_t.entropy())
                 return new_rnn_state, (loss_actor_1_t, loss_actor_2_t, entropy_t)
 
-            # OLD: _, (loss_actor_1, loss_actor_2, entropy_seq) = jax.lax.scan(...)
-            final_actor_rnn_state, (loss_actor_1, loss_actor_2, entropy_seq) = jax.lax.scan(
-                actor_step,
-                actor_state.rnn_state,
-                (obs, actions, logp_old, batch_adv)
-            )
+            if USE_LSTM:
+                final_actor_rnn_state, (loss_actor_1, loss_actor_2, entropy_seq) = jax.lax.scan(
+                    actor_step,
+                    actor_state.rnn_state,
+                    (obs, actions, logp_old, batch_adv)
+                )
+            else:
+                _, (loss_actor_1, loss_actor_2, entropy_seq) = jax.lax.scan(
+                    actor_step,
+                    None,
+                    (obs, actions, logp_old, batch_adv)
+                )
 
             policy_loss = -jnp.mean(jnp.minimum(loss_actor_1, loss_actor_2))
 
             if ALGO_NAME == "MAPPO":
-                # OLD (non-sequence recurrent path):
-                # values, new_critic_rnn_state = critic.apply(critic_params, world_state_flat, critic_state.rnn_state)
-                # values_t = values.squeeze()
 
                 def critic_step(rnn_state, world_state_t):
-                    values_t, new_rnn_state = critic.apply(critic_params, world_state_t[None, ...], rnn_state)
-                    return new_rnn_state, values_t.squeeze()
+                    if USE_LSTM:
+                        values_t, new_rnn_state = critic.apply(critic_params, world_state_t[None, ...], rnn_state)
+                        return new_rnn_state, values_t.squeeze()
+                    else:
+                        values_t, _ = critic.apply(critic_params, world_state_t[None, ...], _)
+                        return None, values_t.squeeze()
 
                 # OLD: _, values_t = jax.lax.scan(...)
                 final_critic_rnn_state, values_t = jax.lax.scan(
@@ -446,8 +459,12 @@ def train_jax(
                 # value_loss = jnp.mean((values_t - targets_flat) ** 2)
 
                 def critic_step(rnn_state, obs_t):
-                    values_t, new_rnn_state = critic.apply(critic_params, obs_t, rnn_state)
-                    return new_rnn_state, values_t
+                    if USE_LSTM:
+                        values_t, new_rnn_state = critic.apply(critic_params, obs_t, rnn_state)
+                        return new_rnn_state, values_t
+                    else:
+                        values_t, _ = critic.apply(critic_params, obs_t, _)
+                        return None, values_t
 
                 # OLD: _, values_t = jax.lax.scan(...)
                 final_critic_rnn_state, values_t = jax.lax.scan(
@@ -477,16 +494,25 @@ def train_jax(
             return total_loss, (metrics, final_actor_rnn_state, final_critic_rnn_state)
         
         # OLD: (loss, metrics), grads = jax.value_and_grad(...)
-        (loss, (metrics, final_actor_rnn_state, final_critic_rnn_state)), grads = jax.value_and_grad(
-            loss_fn, has_aux=True, argnums=(0, 1)
-        )(actor_state.params, critic_state.params)
+        # if no lstm then no final_actor_rnn_state and final_critic_rnn_state is NONE
+        if USE_LSTM:
+            (loss, (metrics, final_actor_rnn_state, final_critic_rnn_state)), grads = jax.value_and_grad(
+                loss_fn, has_aux=True, argnums=(0, 1)
+            )(actor_state.params, critic_state.params)
+        else:
+            (loss, metrics), grads = jax.value_and_grad(
+                loss_fn, has_aux=True, argnums=(0, 1)
+            )(actor_state.params, critic_state.params)
+            # final_actor_rnn_state = None
+            # final_critic_rnn_state = None
 
         # Apply updates
         actor_state = actor_state.apply_gradients(grads=grads[0])
         critic_state = critic_state.apply_gradients(grads=grads[1])
         # OLD: did not persist recurrent states from PPO scan
-        actor_state = actor_state.replace(rnn_state=final_actor_rnn_state)
-        critic_state = critic_state.replace(rnn_state=final_critic_rnn_state)
+        if USE_LSTM:
+            actor_state = actor_state.replace(rnn_state=final_actor_rnn_state)
+            critic_state = critic_state.replace(rnn_state=final_critic_rnn_state)
 
         return actor_state, critic_state, metrics
 

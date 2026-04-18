@@ -4,6 +4,7 @@ import flax.linen as nn
 import distrax
 from typing import Any, Tuple
 from flax.linen.initializers import orthogonal, constant
+from utils import USE_LSTM
 
 
 
@@ -360,8 +361,10 @@ class MAPPOCritic(nn.Module):
 
         embedding = CNN(self.activation)(world_state)
 
-        # OLD: new_rnn_state, lstm_out = nn.LSTMCell()(rnn_state, embedding)
-        new_rnn_state, lstm_out = nn.LSTMCell(features=64)(rnn_state, embedding)
+        if USE_LSTM:
+            new_rnn_state, lstm_out = nn.LSTMCell(features=64)(rnn_state, embedding)
+        else:
+            lstm_out = embedding
 
         x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
                      bias_init=constant(0.0))(lstm_out)
