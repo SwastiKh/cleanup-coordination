@@ -67,7 +67,10 @@ def train_jax(
 
         # Actor
         # obs_batch = obs  # (num_agents, H, W, C)
-        pi, new_rnn_state = actor.apply(actor_state.params, obs, actor_state.rnn_state)
+        if USE_LSTM:
+            pi, new_rnn_state = actor.apply(actor_state.params, obs, actor_state.rnn_state)
+        else:
+            pi, _ = actor.apply(actor_state.params, obs)
         actions = pi.sample(seed=act_rng).astype(jnp.int32)
         logp = pi.log_prob(actions)
 
@@ -80,13 +83,13 @@ def train_jax(
                 values, new_critic_rnn_state = critic.apply(critic_state.params, world_state, critic_state.rnn_state)
                 values = jnp.repeat(values, obs.shape[0])
             else:
-                values, _ = critic.apply(critic_state.params, world_state, _)
+                values, _ = critic.apply(critic_state.params, world_state)
                 values = jnp.repeat(values, obs.shape[0])
         elif ALGO_NAME == "IPPO":
             if USE_LSTM:
                 values, new_critic_rnn_state = critic.apply(critic_state.params, obs, critic_state.rnn_state)
             else:
-                values, _ = critic.apply(critic_state.params, obs, _)
+                values, _ = critic.apply(critic_state.params, obs)
 
         if USE_LSTM:
             actor_state = actor_state.replace(rnn_state=new_rnn_state)
@@ -169,10 +172,15 @@ def train_jax(
                 total_successful_cleans=clean_count,
                 total_apples_collected=apple_count,
             )
-            new_obs, new_env_state = env.reset(rng)
+            # RANDOMIZE THE OBSERVATIONS IN THE TRANSITION TO PREVENT OVERFITTING TO SEQUENCES
+            rng, apple_rng, dirt_rng = jax.random.split(rng, 3)
+            RESET_APPLE_FRACTION = jax.random.uniform(apple_rng, minval=0.0, maxval=1.0)
+            RESET_DIRT_FRACTION = jax.random.uniform(dirt_rng, minval=0.0, maxval=1.0)
+            new_obs, new_env_state = env.reset(rng, reset_dirt_fraction=RESET_DIRT_FRACTION, reset_apple_fraction=RESET_APPLE_FRACTION)
             # set the memory for lstm also to zeros here for both actor and critic
-            actor_state = actor_state.replace(rnn_state=(jnp.zeros_like(actor_state.rnn_state[0]), jnp.zeros_like(actor_state.rnn_state[1])))
-            critic_state = critic_state.replace(rnn_state=(jnp.zeros_like(critic_state.rnn_state[0]), jnp.zeros_like(critic_state.rnn_state[1])))
+            if USE_LSTM:
+                actor_state = actor_state.replace(rnn_state=(jnp.zeros_like(actor_state.rnn_state[0]), jnp.zeros_like(actor_state.rnn_state[1])))
+                critic_state = critic_state.replace(rnn_state=(jnp.zeros_like(critic_state.rnn_state[0]), jnp.zeros_like(critic_state.rnn_state[1])))
             return transition, actor_state, critic_state, new_obs, new_env_state, running_total_successful_cleans, running_total_apples_collected
 
         def not_done(operand):
@@ -195,8 +203,9 @@ def train_jax(
             )
 
             obs = next_obs.copy()
-            actor_state = actor_state.replace(rnn_state=new_rnn_state)
-            critic_state = critic_state.replace(rnn_state=new_critic_rnn_state)
+            if USE_LSTM:
+                actor_state = actor_state.replace(rnn_state=new_rnn_state)
+                critic_state = critic_state.replace(rnn_state=new_critic_rnn_state)
             return transition, actor_state, critic_state, obs, current_env_state, running_total_successful_cleans, running_total_apples_collected
             # return transition, obs
 
@@ -278,7 +287,11 @@ def train_jax(
 
     
     rng, reset_rng = jax.random.split(rng)
-    obs, env_state = env.reset(reset_rng)
+    # RANDOMIZE THE OBSERVATIONS IN THE TRANSITION TO PREVENT OVERFITTING TO SEQUENCES
+    rng, apple_rng, dirt_rng = jax.random.split(rng, 3)
+    RESET_APPLE_FRACTION = jax.random.uniform(apple_rng, minval=0.0, maxval=1.0)
+    RESET_DIRT_FRACTION = jax.random.uniform(dirt_rng, minval=0.0, maxval=1.0)
+    obs, env_state = env.reset(reset_rng, reset_dirt_fraction=RESET_DIRT_FRACTION, reset_apple_fraction=RESET_APPLE_FRACTION)
 
     # (final_actor_state, final_critic_state, env_state, terminal_obs, rng, step), trajectory_rollout = jax.lax.scan(
     #     update_step,
@@ -312,13 +325,13 @@ def train_jax(
         if USE_LSTM:
             last_values, _ = critic.apply(final_critic_state.params, world_state, final_critic_state.rnn_state)
         else:
-            last_values, _ = critic.apply(final_critic_state.params, world_state, _)
+            last_values, _ = critic.apply(final_critic_state.params, world_state)
         last_values = jnp.repeat(last_values, terminal_obs.shape[0])     # (N,)
     elif ALGO_NAME == "IPPO":
         if USE_LSTM:
             last_values, _ = critic.apply(final_critic_state.params, terminal_obs, final_critic_state.rnn_state)
         else:
-            last_values, _ = critic.apply(final_critic_state.params, terminal_obs, _)
+            last_values, _ = critic.apply(final_critic_state.params, terminal_obs)
 
 
     # advantages, targets = compute_gae(traj, config)
@@ -408,7 +421,10 @@ def train_jax(
 
             def actor_step(rnn_state, actor_inputs):
                 obs_t, actions_t, logp_old_t, adv_t = actor_inputs
-                pi_t, new_rnn_state = actor.apply(actor_params, obs_t, rnn_state)
+                if USE_LSTM:
+                    pi_t, new_rnn_state = actor.apply(actor_params, obs_t, rnn_state)
+                else:
+                    pi_t, _ = actor.apply(actor_params, obs_t)
                 logp_t = pi_t.log_prob(actions_t)
                 ratio_t = jnp.exp(logp_t - logp_old_t)
                 loss_actor_1_t = ratio_t * adv_t
@@ -418,7 +434,10 @@ def train_jax(
                     1.0 + config["CLIP_EPS"]
                 ) * adv_t
                 entropy_t = jnp.mean(pi_t.entropy())
-                return new_rnn_state, (loss_actor_1_t, loss_actor_2_t, entropy_t)
+                if USE_LSTM:
+                    return new_rnn_state, (loss_actor_1_t, loss_actor_2_t, entropy_t)
+                else:
+                    return None, (loss_actor_1_t, loss_actor_2_t, entropy_t)
 
             if USE_LSTM:
                 final_actor_rnn_state, (loss_actor_1, loss_actor_2, entropy_seq) = jax.lax.scan(
@@ -442,15 +461,22 @@ def train_jax(
                         values_t, new_rnn_state = critic.apply(critic_params, world_state_t[None, ...], rnn_state)
                         return new_rnn_state, values_t.squeeze()
                     else:
-                        values_t, _ = critic.apply(critic_params, world_state_t[None, ...], _)
+                        values_t, _ = critic.apply(critic_params, world_state_t[None, ...])
                         return None, values_t.squeeze()
 
                 # OLD: _, values_t = jax.lax.scan(...)
-                final_critic_rnn_state, values_t = jax.lax.scan(
-                    critic_step,
-                    critic_state.rnn_state,
-                    world_state_seq
-                )
+                if USE_LSTM:
+                    final_critic_rnn_state, values_t = jax.lax.scan(
+                        critic_step,
+                        critic_state.rnn_state,
+                        world_state_seq
+                    )
+                else:
+                    _, values_t = jax.lax.scan(
+                        critic_step,
+                        None,
+                        world_state_seq
+                    )
                 value_loss = jnp.mean((values_t - targets_global) ** 2)
             elif ALGO_NAME == "IPPO":
                 # OLD (non-sequence recurrent path):
@@ -463,15 +489,22 @@ def train_jax(
                         values_t, new_rnn_state = critic.apply(critic_params, obs_t, rnn_state)
                         return new_rnn_state, values_t
                     else:
-                        values_t, _ = critic.apply(critic_params, obs_t, _)
+                        values_t, _ = critic.apply(critic_params, obs_t)
                         return None, values_t
 
                 # OLD: _, values_t = jax.lax.scan(...)
-                final_critic_rnn_state, values_t = jax.lax.scan(
-                    critic_step,
-                    critic_state.rnn_state,
-                    obs
-                )
+                if USE_LSTM:
+                    final_critic_rnn_state, values_t = jax.lax.scan(
+                        critic_step,
+                        critic_state.rnn_state,
+                        obs
+                    )
+                else:
+                    _, values_t = jax.lax.scan(
+                        critic_step,
+                        None,
+                        obs
+                    )
                 value_loss = jnp.mean((values_t - batch_targets) ** 2)
 
             # values_t = values.squeeze() 
@@ -491,7 +524,10 @@ def train_jax(
             }
 
             # OLD: return total_loss, metrics
-            return total_loss, (metrics, final_actor_rnn_state, final_critic_rnn_state)
+            if USE_LSTM:
+                return total_loss, (metrics, final_actor_rnn_state, final_critic_rnn_state)
+            else:
+                return total_loss, metrics
         
         # OLD: (loss, metrics), grads = jax.value_and_grad(...)
         # if no lstm then no final_actor_rnn_state and final_critic_rnn_state is NONE

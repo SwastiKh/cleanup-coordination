@@ -13,7 +13,11 @@ from utils import *
 def make_policy_fn(actor):
     def policy_fn(actor_params, obs, rnn_state, rng, deterministic):
         # OLD: pi, _ = actor.apply(actor_params, obs)
-        pi, new_rnn_state = actor.apply(actor_params, obs, rnn_state)
+        if USE_LSTM:
+            pi, new_rnn_state = actor.apply(actor_params, obs, rnn_state)
+        else:
+            pi, _ = actor.apply(actor_params, obs)
+            new_rnn_state = None
         if deterministic:
             return jnp.argmax(pi.logits, axis=-1), new_rnn_state
         else:
@@ -48,7 +52,7 @@ def evaluate_policy(
         rng = jax.random.PRNGKey(seed)
         rng, reset_rng = jax.random.split(rng)
 
-        obs, env_state = env.reset(reset_rng)
+        obs, env_state = env.reset(reset_rng, RESET_DIRT_FRACTION, RESET_APPLE_FRACTION)
 
         action_dim = env.action_space(0).n
         actor = MAPPOActor(
@@ -59,7 +63,8 @@ def evaluate_policy(
 
 
         policy_fn_jit = jax.jit(make_policy_fn(actor), static_argnames=("deterministic",),)
-        actor_rnn_state = (jnp.zeros((num_agents, 64)), jnp.zeros((num_agents, 64)))
+        if USE_LSTM:
+            actor_rnn_state = (jnp.zeros((num_agents, 128)), jnp.zeros((num_agents, 128)))
 
         
         frames = []
@@ -93,20 +98,22 @@ def evaluate_policy(
             # else:
             #     actions = pi.sample(seed=act_rng)
 
-            # OLD:
-            # actions = policy_fn_jit(
-            #     params["actor"],
-            #     obs_batch,
-            #     act_rng,
-            #     deterministic,
-            # )
-            actions, actor_rnn_state = policy_fn_jit(
-                params["actor"],
-                obs_batch,
-                actor_rnn_state,
-                act_rng,
-                deterministic,
-            )
+            if USE_LSTM == False:
+                actions, _ = policy_fn_jit(
+                    params["actor"],
+                    obs_batch,
+                    None,
+                    act_rng,
+                    deterministic,
+                )
+            else:
+                actions, actor_rnn_state = policy_fn_jit(
+                    params["actor"],
+                    obs_batch,
+                    actor_rnn_state,
+                    act_rng,
+                    deterministic,
+                )
 
             # print("Eval step {}, actions: {}".format(t, actions))
             obs, env_state, reward, done, info = env.step_env(
@@ -125,7 +132,8 @@ def evaluate_policy(
                     frames.append(np.asarray(img))
 
             if done["__all__"]:
-                actor_rnn_state = (jnp.zeros((num_agents, 64)), jnp.zeros((num_agents, 64)))
+                if USE_LSTM:
+                    actor_rnn_state = (jnp.zeros((num_agents, 128)), jnp.zeros((num_agents, 128)))
                 break
 
         if SAVE_GIF and ep==0:

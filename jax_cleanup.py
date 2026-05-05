@@ -46,7 +46,9 @@ env = make('clean_up',
         shared_rewards=SHARED_REWARDS,
         shared_cleaning_rewards=SHARED_CLEANING_REWARDS,
         inequity_aversion=INEQUITY_AVERSION,
-        inequity_aversion_target_agents=INEQUITY_AVERSION_TARGET_AGENTS
+        inequity_aversion_target_agents=INEQUITY_AVERSION_TARGET_AGENTS,
+        reset_dirt_fraction=RESET_DIRT_FRACTION,
+        reset_apple_fraction=RESET_APPLE_FRACTION,
     )
 print("Environment loaded.")
 

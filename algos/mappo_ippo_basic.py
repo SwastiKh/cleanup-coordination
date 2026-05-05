@@ -14,7 +14,7 @@ class MLPEncoder(nn.Module):
     @nn.compact
     def __call__(self, x):
         # x: (B, H, W, C) or (B, D)
-        x = x.reshape((x.shape[0], -1))  # 🔴 REQUIRED
+        x = x.reshape((x.shape[0], -1))  
         x = nn.Dense(self.hidden_dim)(x)
         x = nn.relu(x)
         x = nn.Dense(self.hidden_dim)(x)
@@ -262,61 +262,105 @@ class IPPOActor(nn.Module):
     encoder_type: str = "cnn"
     activation: str = "relu"
 
-    @nn.compact
-    def __call__(self, obs, rnn_state):
-        # obs: (N, H, W, C) or (batch, H, W, C)
+    if USE_LSTM:
+        @nn.compact
+        def __call__(self, obs, rnn_state):
+            # obs: (N, H, W, C) or (batch, H, W, C)
 
-        embedding = CNN(self.activation)(obs)
+            embedding = CNN(self.activation)(obs)
 
-        # OLD: new_rnn_state, lstm_out = nn.LSTMCell()(rnn_state, embedding)
-        new_rnn_state, lstm_out = nn.LSTMCell(features=64)(rnn_state, embedding) 
+            new_rnn_state, lstm_out = nn.LSTMCell(features=64)(rnn_state, embedding) 
 
-        x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
-                     bias_init=constant(0.0))(lstm_out)
-        x_a1 = nn.relu(x_d1)
+            x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(lstm_out)
+            x_a1 = nn.relu(x_d1)
 
-        x_d2 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
-                     bias_init=constant(0.0))(x_a1)
-        x_a2 = nn.relu(x_d2)
+            x_d2 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(x_a1)
+            x_a2 = nn.relu(x_d2)
 
-        logits = nn.Dense(
-            self.action_dim,
-            kernel_init=orthogonal(0.01),
-            bias_init=constant(0.0),
-        )(x_a2)
+            logits = nn.Dense(
+                self.action_dim,
+                kernel_init=orthogonal(0.01),
+                bias_init=constant(0.0),
+            )(x_a2)
 
-        pi = distrax.Categorical(logits=logits)
-        return pi, new_rnn_state
+            pi = distrax.Categorical(logits=logits)
+            return pi, new_rnn_state
+    else:
+        @nn.compact
+        def __call__(self, obs):
+            # obs: (N, H, W, C) or (batch, H, W, C)
+
+            embedding = CNN(self.activation)(obs)
+
+            x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(embedding)
+            x_a1 = nn.relu(x_d1)
+
+            x_d2 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(x_a1)
+            x_a2 = nn.relu(x_d2)
+
+            logits = nn.Dense(
+                self.action_dim,
+                kernel_init=orthogonal(0.01),
+                bias_init=constant(0.0),
+            )(x_a2)
+
+            pi = distrax.Categorical(logits=logits)
+            return pi, None
 
 class IPPOCritic(nn.Module):
     encoder_type: str = "cnn"
     activation: str = "relu"
 
-    @nn.compact
-    def __call__(self, obs, rnn_state):
-        # obs: (N, H, W, C) or (batch, H, W, C)
+    if USE_LSTM:
+        @nn.compact
+        def __call__(self, obs, rnn_state):
+            # obs: (N, H, W, C) or (batch, H, W, C)
 
-        embedding = CNN(self.activation)(obs)
+            embedding = CNN(self.activation)(obs)
 
-        # OLD: new_rnn_state, lstm_out = nn.LSTMCell()(rnn_state, embedding)
-        new_rnn_state, lstm_out = nn.LSTMCell(features=64)(rnn_state, embedding) 
+            new_rnn_state, lstm_out = nn.LSTMCell(features=64)(rnn_state, embedding) 
 
-        x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
-                     bias_init=constant(0.0))(lstm_out)
-        x_a1 = nn.relu(x_d1)
+            x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(lstm_out)
+            x_a1 = nn.relu(x_d1)
 
-        x_d2 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
-                     bias_init=constant(0.0))(x_a1)
-        x_a2 = nn.relu(x_d2)
+            x_d2 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(x_a1)
+            x_a2 = nn.relu(x_d2)
 
-        value = nn.Dense(
-            1,
-            kernel_init=orthogonal(1.0),
-            bias_init=constant(0.0),
-        )(x_a2)
+            value = nn.Dense(
+                1,
+                kernel_init=orthogonal(1.0),
+                bias_init=constant(0.0),
+            )(x_a2)
 
-        #return jnp.squeeze(value, axis=-1)
-        return jnp.squeeze(value, axis=-1), new_rnn_state
+            #return jnp.squeeze(value, axis=-1)
+            return jnp.squeeze(value, axis=-1), new_rnn_state
+    else:
+        @nn.compact
+        def __call__(self, obs):
+            # obs: (N, H, W, C) or (batch, H, W, C)
+
+            embedding = CNN(self.activation)(obs)
+
+            x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(embedding)
+            x_a1 = nn.relu(x_d1)
+
+            x_d2 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(x_a1)
+            x_a2 = nn.relu(x_d2)
+
+            value = nn.Dense(
+                1,
+                kernel_init=orthogonal(1.0),
+                bias_init=constant(0.0),
+            )(x_a2)
+            return jnp.squeeze(value, axis=-1), None
 
 
 class MAPPOActor(nn.Module):
@@ -324,62 +368,103 @@ class MAPPOActor(nn.Module):
     encoder_type: str = "cnn"
     activation: str = "relu"
 
-    @nn.compact
-    def __call__(self, obs, rnn_state):
-        # self.hidden_dim = 128
-        # obs: (N, H, W, C) or (batch, H, W, C)
+    if USE_LSTM:
+        @nn.compact
+        def __call__(self, obs, rnn_state):
+            # self.hidden_dim = 128
+            # obs: (N, H, W, C) or (batch, H, W, C)
 
-        embedding = CNN(self.activation)(obs)
+            embedding = CNN(self.activation)(obs)
 
-        # OLD: new_rnn_state, lstm_out = nn.LSTMCell()(rnn_state, embedding)
-        new_rnn_state, lstm_out = nn.LSTMCell(features=64)(rnn_state, embedding)    
+            new_rnn_state, lstm_out = nn.LSTMCell(features=64)(rnn_state, embedding)    
 
-        x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
-                     bias_init=constant(0.0))(lstm_out)
-        x_a1 = nn.relu(x_d1)
+            x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(lstm_out)
+            x_a1 = nn.relu(x_d1)
 
-        x_d2 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
-                     bias_init=constant(0.0))(x_a1)
-        x_a2 = nn.relu(x_d2)
+            x_d2 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(x_a1)
+            x_a2 = nn.relu(x_d2)
 
-        logits = nn.Dense(
-            self.action_dim,
-            kernel_init=orthogonal(0.01),
-            bias_init=constant(0.0),
-        )(x_a2)
+            logits = nn.Dense(
+                self.action_dim,
+                kernel_init=orthogonal(0.01),
+                bias_init=constant(0.0),
+            )(x_a2)
 
-        pi = distrax.Categorical(logits=logits)
-        return pi, new_rnn_state
+            pi = distrax.Categorical(logits=logits)
+            return pi, new_rnn_state
+    else:
+        @nn.compact
+        def __call__(self, obs):
+            # self.hidden_dim = 128
+            # obs: (N, H, W, C) or (batch, H, W, C)
+
+            embedding = CNN(self.activation)(obs)
+
+            x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(embedding)
+            x_a1 = nn.relu(x_d1)
+
+            x_d2 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(x_a1)
+            x_a2 = nn.relu(x_d2)
+
+            logits = nn.Dense(
+                self.action_dim,
+                kernel_init=orthogonal(0.01),
+                bias_init=constant(0.0),
+            )(x_a2)
+
+            pi = distrax.Categorical(logits=logits)
+            return pi, None
     
 class MAPPOCritic(nn.Module):
     encoder_type: str = "cnn"
     activation: str = "relu"
 
-    @nn.compact
-    def __call__(self, world_state, rnn_state):
-        # world_state: (N, H, W, C * num_agents) or (batch, H, W, C * num_agents)
+    if USE_LSTM:
+        @nn.compact
+        def __call__(self, world_state, rnn_state):
+            # world_state: (N, H, W, C * num_agents) or (batch, H, W, C * num_agents)
 
-        embedding = CNN(self.activation)(world_state)
+            embedding = CNN(self.activation)(world_state)
 
-        if USE_LSTM:
             new_rnn_state, lstm_out = nn.LSTMCell(features=64)(rnn_state, embedding)
-        else:
-            lstm_out = embedding
 
-        x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
-                     bias_init=constant(0.0))(lstm_out)
-        x_a1 = nn.relu(x_d1)
+            x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(lstm_out)
+            x_a1 = nn.relu(x_d1)
 
-        x_d2 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
-                     bias_init=constant(0.0))(x_a1)
-        x_a2 = nn.relu(x_d2)
+            x_d2 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(x_a1)
+            x_a2 = nn.relu(x_d2)
 
-        value = nn.Dense(
-            1,
-            kernel_init=orthogonal(1.0),
-            bias_init=constant(0.0),
-        )(x_a2)
+            value = nn.Dense(
+                1,
+                kernel_init=orthogonal(1.0),
+                bias_init=constant(0.0),
+            )(x_a2)
+            return jnp.squeeze(value, axis=-1), new_rnn_state
+    else:
+        @nn.compact
+        def __call__(self, world_state):
+            # world_state: (N, H, W, C * num_agents) or (batch, H, W, C * num_agents)
 
-        # return jnp.squeeze(value, axis=-1)
-        return jnp.squeeze(value, axis=-1), new_rnn_state
+            embedding = CNN(self.activation)(world_state)
+
+            x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(embedding)
+            x_a1 = nn.relu(x_d1)
+
+            x_d2 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
+                        bias_init=constant(0.0))(x_a1)
+            x_a2 = nn.relu(x_d2)
+
+            value = nn.Dense(
+                1,
+                kernel_init=orthogonal(1.0),
+                bias_init=constant(0.0),
+            )(x_a2)
+            return jnp.squeeze(value, axis=-1), None
 

@@ -204,48 +204,50 @@ class Clean_up(MultiAgentEnv):
         dirtSpawnProbability=0.5,
         delayStartOfDirtSpawning=50, # 50
         jit=True,
+        reset_dirt_fraction=1.0,   # to randomize env init
+        reset_apple_fraction=0.0,  # to randomize env init
         
-        obs_size=11,
-        # obs_size=7,
+        # obs_size=11,
+        obs_size=7,
         cnn=True,
 
-        map_ASCII = [
-                'HFFFHFFHFHFHFHFHFHFHHFHFFFHF',
-                'HFHFHFFHFHFHFHFHFHFHHFHFFFHF',
-                'HFFHFFHHFHFHFHFHFHFHHFHFFFHF',
-                'HFHFHFFHFHFHFHFHFHFHHFHFFFHF',
-                'HFFFFFFHFHFHFHFHFHFHHFHFFFHF',
-                '==============+~FHHHHHHf====',
-                '   P    P      ===+~SSf     ',
-                '     P     P   P  <~Sf  P   ',
-                '             P   P<~S>      ',
-                '   P    P         <~S>   P  ',
-                '               P  <~S>P     ',
-                '     P           P<~S>      ',
-                '           P      <~S> P    ',
-                '  P             P <~S>      ',
-                '^T^T^T^T^T^T^T^T^T;~S,^T^T^T',
-                'BBBBBBBBBBBBBBBBBBBssBBBBBBB',
-                'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-                'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-                'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-            ]
         # map_ASCII = [
-        #     'HHFHFHFHFHFHFHHFHFFFHF',
-        #     'FHFHFHFHFHFHFHHFHFFFHF',
-        #     'FHFHFHFHFHFHFHHFHFFFHF',
-        #     '========+~FHHHHHHf====',
-        #     '  P      ===+~SSf     ',
-        #     '     P   P  <~Sf  P   ',
-        #     '         P  <~S>P     ',
-        #     '           P<~S>      ',
-        #     '     P      <~S> P    ',
-        #     '          P <~S>      ',
-        #     '^T^T^T^T^T^T;~S,^T^T^T',
-        #     'BBBBBBBBBBBBBssBBBBBBB',
-        #     'BBBBBBBBBBBBBBBBBBBBBB',
-        #     'BBBBBBBBBBBBBBBBBBBBBB',
-        # ]
+        #         'HFFFHFFHFHFHFHFHFHFHHFHFFFHF',
+        #         'HFHFHFFHFHFHFHFHFHFHHFHFFFHF',
+        #         'HFFHFFHHFHFHFHFHFHFHHFHFFFHF',
+        #         'HFHFHFFHFHFHFHFHFHFHHFHFFFHF',
+        #         'HFFFFFFHFHFHFHFHFHFHHFHFFFHF',
+        #         '==============+~FHHHHHHf====',
+        #         '   P    P      ===+~SSf     ',
+        #         '     P     P   P  <~Sf  P   ',
+        #         '             P   P<~S>      ',
+        #         '   P    P         <~S>   P  ',
+        #         '               P  <~S>P     ',
+        #         '     P           P<~S>      ',
+        #         '           P      <~S> P    ',
+        #         '  P             P <~S>      ',
+        #         '^T^T^T^T^T^T^T^T^T;~S,^T^T^T',
+        #         'BBBBBBBBBBBBBBBBBBBssBBBBBBB',
+        #         'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        #         'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        #         'BBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        #     ]
+        map_ASCII = [
+            'HHFHFHFHFHFHFHHFHFFFHF',
+            'FHFHFHFHFHFHFHHFHFFFHF',
+            'FHFHFHFHFHFHFHHFHFFFHF',
+            '========+~FHHHHHHf====',
+            '  P      ===+~SSf     ',
+            '     P   P  <~Sf  P   ',
+            '         P  <~S>P     ',
+            '           P<~S>      ',
+            '     P      <~S> P    ',
+            '          P <~S>      ',
+            '^T^T^T^T^T^T;~S,^T^T^T',
+            'BBBBBBBBBBBBBssBBBBBBB',
+            'BBBBBBBBBBBBBBBBBBBBBB',
+            'BBBBBBBBBBBBBBBBBBBBBB',
+        ]
     ):
 
         super().__init__(num_agents=num_agents)
@@ -1535,12 +1537,18 @@ class Clean_up(MultiAgentEnv):
             )
 
         def _reset_state(
-            key: jnp.ndarray
+            key: jnp.ndarray,
+            reset_dirt_fraction: float = 0.5,
+            reset_apple_fraction: float = 0.3 
         ) -> State:
             key, subkey = jax.random.split(key)
 
             # Find the free spaces in the grid
             grid = jnp.zeros((self.GRID_SIZE_ROW, self.GRID_SIZE_COL), jnp.int16)
+            num_active_apples = int(len(apple_pos) * reset_apple_fraction)
+            active_apples = apple_pos[:num_active_apples]
+            grid = grid.at[active_apples[:, 0], active_apples[:, 1]].set(jnp.int16(Items.apple))
+
 
 
             inside_players_pos = jax.random.permutation(subkey, self.SPAWNS_PLAYER_IN)
@@ -1554,7 +1562,14 @@ class Clean_up(MultiAgentEnv):
             dirt = self.DIRT
 
             potential_dirt_label = jnp.zeros((len(potential_dirt)), dtype=jnp.int16) +Items.potential_dirt
-            dirt_label = jnp.zeros((len(dirt)), dtype=jnp.int16) + Items.dirt
+            # randomize env init
+            # dirt_label = jnp.zeros((len(dirt)), dtype=jnp.int16) + Items.dirt
+            num_active_dirt = int(len(dirt) * reset_dirt_fraction)
+            dirt_label = jnp.concatenate([
+                jnp.full((num_active_dirt,), Items.dirt, dtype=jnp.int16),
+                jnp.full((len(dirt) - num_active_dirt,), Items.potential_dirt, dtype=jnp.int16),
+            ])
+
 
             potential_dirt_and_dirt = jnp.concatenate((potential_dirt, dirt))
             potential_dirt_and_dirt_label = jnp.concatenate((potential_dirt_label, dirt_label))
@@ -1620,9 +1635,11 @@ class Clean_up(MultiAgentEnv):
             )
 
         def reset(
-            key: jnp.ndarray
+            key: jnp.ndarray,     
+            reset_dirt_fraction=0.5,
+            reset_apple_fraction=0.3,
         ) -> Tuple[jnp.ndarray, State]:
-            state = _reset_state(key)
+            state = _reset_state(key, reset_dirt_fraction, reset_apple_fraction)
             obs = _get_obs(state)
             return obs, state
         

@@ -5,11 +5,11 @@ LOG_WANDB = True
 # ENV SETTINGS
 NUM_AGENTS=3
 # GRID_SIZE = (18,25) #make it smaller (maybe half the size) for faster training
-NUM_INNER_STEPS=256 #256
+NUM_INNER_STEPS=512 #256
 NUM_OUTER_STEPS=10240000 #10e4
 BATCH_SIZE = 51200
 EVAL_INTERVAL = 51200 # keep multiple of 256
-NUM_EVAL_STEPS = 256  # Number of steps during evaluation
+NUM_EVAL_STEPS = 512  # Number of steps during evaluation
 SAVE_CHECKPOINT_INTERVAL = 512000  # Save model checkpoint every n outer steps
 SAVE_GIF = True
 SAVE_GIF_INTERVAL = 512000  # Save GIF every n outer steps
@@ -19,16 +19,18 @@ THRESHOLD_DEPLETION=0.32  # 0.4 #deepmind paper- 0.32, human=0.6
 THRESHOLD_RESTORATION=0.2 # 0.0 #deepmind paper- 0.0, human=0.3
 DIRT_SPAWN_PROBABILITY=0.5  # 0.5 #deepmind paper- 0.5, human=0.6
 DELAY_START_OF_DIRT_SPAWNING=50  # 50
-RUN_NAME = "share_clean_rwd_no_LSTM_bigEnv_obs11"  # "SHARED" or "INEQUITY_AVERSION" or "BASIC_ENV"
+RUN_NAME = "share_clean_rwd_no_LSTM_512_steps_random_init"  # "SHARED" or "INEQUITY_AVERSION" or "BASIC_ENV"
 SHARED_CLEANING_REWARDS = True  # True or False
 SHARED_REWARDS = False  # True or False
 INEQUITY_AVERSION = False  # True or False
 INEQUITY_AVERSION_TARGET_AGENTS = None  # None or list of agent indices
 
-OBS_SIZE = 7 #default is 11 for bigger env 
+OBS_SIZE = 11 #default is 11 for bigger env 
+RESET_DIRT_FRACTION = 1.0  # Fraction of dirt patches to reset at the end of each episode
+RESET_APPLE_FRACTION = 0  # Fraction of apple patches to reset at the end of each episode
 
 # Algo settings
-ALGO_NAME = "IPPO" # "RANDOM" or "PPO" or "MAPPO" or "IPPO"
+ALGO_NAME = "MAPPO" # "RANDOM" or "PPO" or "MAPPO" or "IPPO"
 ENCODER = "CNN"  # "MLP" or "CNN" or "RNN"
 USE_LSTM = False
 
