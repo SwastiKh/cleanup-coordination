@@ -19,13 +19,13 @@ THRESHOLD_DEPLETION=0.32  # 0.4 #deepmind paper- 0.32, human=0.6
 THRESHOLD_RESTORATION=0.2 # 0.0 #deepmind paper- 0.0, human=0.3
 DIRT_SPAWN_PROBABILITY=0.5  # 0.5 #deepmind paper- 0.5, human=0.6
 DELAY_START_OF_DIRT_SPAWNING=50  # 50
-RUN_NAME = "share_clean_rwd_no_LSTM_512_steps_random_init"  # "SHARED" or "INEQUITY_AVERSION" or "BASIC_ENV"
+RUN_NAME = "share_clean_rwd_512_steps_random_init"  # "SHARED" or "INEQUITY_AVERSION" or "BASIC_ENV"
 SHARED_CLEANING_REWARDS = True  # True or False
 SHARED_REWARDS = False  # True or False
 INEQUITY_AVERSION = False  # True or False
 INEQUITY_AVERSION_TARGET_AGENTS = None  # None or list of agent indices
 
-OBS_SIZE = 11 #default is 11 for bigger env 
+OBS_SIZE = 7 #default is 11 for bigger env 
 RESET_DIRT_FRACTION = 1.0  # Fraction of dirt patches to reset at the end of each episode
 RESET_APPLE_FRACTION = 0  # Fraction of apple patches to reset at the end of each episode
 

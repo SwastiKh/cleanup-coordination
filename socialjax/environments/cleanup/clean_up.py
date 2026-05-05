@@ -242,6 +242,7 @@ class Clean_up(MultiAgentEnv):
             '         P  <~S>P     ',
             '           P<~S>      ',
             '     P      <~S> P    ',
+            '  P         <~S>     P',
             '          P <~S>      ',
             '^T^T^T^T^T^T;~S,^T^T^T',
             'BBBBBBBBBBBBBssBBBBBBB',
@@ -1545,9 +1546,14 @@ class Clean_up(MultiAgentEnv):
 
             # Find the free spaces in the grid
             grid = jnp.zeros((self.GRID_SIZE_ROW, self.GRID_SIZE_COL), jnp.int16)
-            num_active_apples = int(len(apple_pos) * reset_apple_fraction)
-            active_apples = apple_pos[:num_active_apples]
-            grid = grid.at[active_apples[:, 0], active_apples[:, 1]].set(jnp.int16(Items.apple))
+            apple_pos = self.POTENTIAL_APPLE
+            num_active_apples = jnp.floor(
+                jnp.asarray(len(apple_pos), dtype=jnp.float32) * reset_apple_fraction
+            ).astype(jnp.int32)
+            active_apples = jnp.arange(len(apple_pos)) < num_active_apples
+            grid = grid.at[apple_pos[:, 0], apple_pos[:, 1]].set(
+                jnp.where(active_apples, jnp.int16(Items.apple), jnp.int16(Items.empty))
+            )
 
 
 
@@ -1555,7 +1561,6 @@ class Clean_up(MultiAgentEnv):
             player_positions = jnp.concatenate((inside_players_pos, self.SPAWNS_PLAYERS))
             agent_pos = jax.random.permutation(subkey, player_positions)[:num_agents]
             wall_pos = self.SPAWNS_WALL
-            apple_pos = self.POTENTIAL_APPLE
 
             river = self.RIVER
             potential_dirt = self.POTENTIAL_DIRT
@@ -1564,11 +1569,15 @@ class Clean_up(MultiAgentEnv):
             potential_dirt_label = jnp.zeros((len(potential_dirt)), dtype=jnp.int16) +Items.potential_dirt
             # randomize env init
             # dirt_label = jnp.zeros((len(dirt)), dtype=jnp.int16) + Items.dirt
-            num_active_dirt = int(len(dirt) * reset_dirt_fraction)
-            dirt_label = jnp.concatenate([
-                jnp.full((num_active_dirt,), Items.dirt, dtype=jnp.int16),
-                jnp.full((len(dirt) - num_active_dirt,), Items.potential_dirt, dtype=jnp.int16),
-            ])
+            num_active_dirt = jnp.floor(
+                jnp.asarray(len(dirt), dtype=jnp.float32) * reset_dirt_fraction
+            ).astype(jnp.int32)
+            active_dirt = jnp.arange(len(dirt)) < num_active_dirt
+            dirt_label = jnp.where(
+                active_dirt,
+                jnp.int16(Items.dirt),
+                jnp.int16(Items.potential_dirt),
+            )
 
 
             potential_dirt_and_dirt = jnp.concatenate((potential_dirt, dirt))
