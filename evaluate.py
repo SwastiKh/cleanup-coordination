@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image
 import wandb
 
-from algos.mappo_ippo_basic import MAPPOActor
+from algos.mappo_ippo_basic import IPPOActor, MAPPOActor
 from utils import *
 
 
@@ -55,12 +55,19 @@ def evaluate_policy(
         obs, env_state = env.reset(reset_rng, RESET_DIRT_FRACTION, RESET_APPLE_FRACTION)
 
         action_dim = env.action_space(0).n
-        actor = MAPPOActor(
-                action_dim=action_dim,
-                encoder_type=ENCODER.lower()
-            )
-        # print("Actor initialized for evaluation at step {}.".format(current_step))
 
+        if ALGO_NAME == "MAPPO":
+            actor = MAPPOActor(
+                    action_dim=action_dim,
+                    encoder_type=ENCODER.lower()
+                )
+            # print("Actor initialized for evaluation at step {}.".format(current_step))
+        elif ALGO_NAME == "IPPO":
+            actor = IPPOActor(
+                    action_dim=action_dim,
+                    encoder_type=ENCODER.lower()
+                )
+            # print("Actor initialized for evaluation at step {}.".format(current_step))
 
         policy_fn_jit = jax.jit(make_policy_fn(actor), static_argnames=("deterministic",),)
         if USE_LSTM:

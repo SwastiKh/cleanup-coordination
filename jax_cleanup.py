@@ -262,7 +262,7 @@ while step < NUM_OUTER_STEPS+additional_steps:
             save_dir=RUN_SAVE_DIR,
             log_wandb=LOG_WANDB,
             current_step=step,
-            deterministic=False,  # Set to True for greedy evaluation policy, False for stochastic policy
+            deterministic=True,  # Set to True for greedy evaluation policy, False for stochastic policy
         )
 
     # print(f"metrics to be logged: {metrics}")
@@ -283,7 +283,7 @@ evaluate_policy(
     save_dir=RUN_SAVE_DIR,
     log_wandb=LOG_WANDB,
     current_step="final",
-    deterministic=False,
+    deterministic=True,
 )
 
 if LOG_WANDB and wandb.run is not None:
