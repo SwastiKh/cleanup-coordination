@@ -57,9 +57,17 @@ def compute_gae(traj, last_values, config):
 
     def gae_step(carry, t):
         gae, next_value = carry
-        delta = rewards[t] + gamma * next_value * (1.0 - dones[t]) - values[t]
-        gae = delta + gamma * lam * (1.0 - dones[t]) * gae
-        return (gae, values[t]), gae
+        # delta = rewards[t] + gamma * next_value * (1.0 - dones[t]) - values[t]
+        # gae = delta + gamma * lam * (1.0 - dones[t]) * gae
+        # return (gae, values[t]), gae
+        reward = rewards[t]   # (N,)
+        value = values[t]     # (N,)
+        done = dones[t]       # (N,)
+
+        delta = reward + gamma * next_value * (1.0 - done) - value
+        gae = delta + gamma * lam * (1.0 - done) * gae  # gae zeroed at boundary
+        return (gae, value), gae
+
 
     (_, _), advantages = jax.lax.scan(
         gae_step,

@@ -204,8 +204,8 @@ class Clean_up(MultiAgentEnv):
         dirtSpawnProbability=0.5,
         delayStartOfDirtSpawning=50, # 50
         jit=True,
-        reset_dirt_fraction=1.0,   # to randomize env init
-        reset_apple_fraction=0.0,  # to randomize env init
+        reset_dirt_fraction=0.5,   # to randomize env init
+        reset_apple_fraction=0.3,  # to randomize env init
         
         # obs_size=11,
         obs_size=7,
@@ -1255,7 +1255,7 @@ class Clean_up(MultiAgentEnv):
 
             state = state.replace(potential_dirt_and_dirt_label=label_rank_new)
             state = state.replace(potential_dirt_and_dirt_locs=unstable_sorted_locs)
-            actions = jnp.array(actions)
+            actions = jnp.asarray(actions, dtype=jnp.int32)
 
             new_grid = state.grid.at[
                 state.agent_locs[:, 0],
@@ -1485,7 +1485,8 @@ class Clean_up(MultiAgentEnv):
                 }
             
             info["clean_action_info"] = jnp.where(actions == Actions.zap_clean, 1, 0).squeeze()
-            info["cleaned_water"] = jnp.array([len(state.potential_dirt_and_dirt_label) - dirtCount] * self.num_agents).squeeze() 
+            info["cleaned_water"] = jnp.array([len(state.potential_dirt_and_dirt_label) - dirtCount] * self.num_agents).squeeze()
+            info["dirtFraction"] = dirtFraction
             
             state_nxt = State(
                 agent_locs=state.agent_locs,
@@ -1507,7 +1508,7 @@ class Clean_up(MultiAgentEnv):
             reset_inner = inner_t == num_inner_steps
 
             # if inner episode is done, return start state for next game
-            state_re = _reset_state(key)
+            state_re = _reset_state(key, reset_dirt_fraction, reset_apple_fraction)
 
             state_re = state_re.replace(outer_t=outer_t + 1)
             state = jax.tree_map(
@@ -1821,13 +1822,12 @@ class Clean_up(MultiAgentEnv):
     def render(
         self,
         state: State,
+        tile_size: int = 16,
     ) -> onp.ndarray:
         """
         Render this grid at a given scale
-        :param r: target renderer object
-        :param tile_size: tile size in pixels
+        :param tile_size: tile size in pixels (default 16; use 32 for high-res)
         """
-        tile_size = 32
         highlight_mask = onp.zeros_like(onp.array(self.GRID))
 
         # Compute the total grid size

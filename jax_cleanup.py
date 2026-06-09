@@ -22,11 +22,10 @@ import optax
 from flax.training.train_state import TrainState
 import flax.struct as struct
 
-
 class RNNTrainState(TrainState):
     rnn_state: tuple = struct.field(pytree_node=True)
 
-
+# 
 
 random_number = np.random.randint(0, 9999)
 print("random_number:", random_number)
@@ -235,8 +234,7 @@ while step < NUM_OUTER_STEPS+additional_steps:
     # env_state = train_out["env_state"]
     # obs = train_out["obs"]
     # rng = train_out["rng"]
-    # step = train_out["step"]
-    step = step + BATCH_SIZE
+    step = int(train_out["step"])
     print(f"Completed up to step {step}.")
 
 

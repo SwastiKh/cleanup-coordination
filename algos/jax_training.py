@@ -10,15 +10,16 @@ import numpy as np
 
 class Transition(NamedTuple):
     obs: jnp.ndarray        # (N, H, W, C)
-    next_obs: jnp.ndarray   # (N, H, W, C)
-    world_state: jnp.ndarray   # (H, W, C*N)
+    # obs=obs.astype(jnp.uint8)
+    # next_obs: jnp.ndarray   # (N, H, W, C)
+    # world_state: jnp.ndarray   # (H, W, C*N)
     rewards: jnp.ndarray     # (N,)
     dones: jnp.ndarray       # (N,)
     values: jnp.ndarray      # (N,)
     actions: jnp.ndarray     # (N,)
     log_probs: jnp.ndarray   # (N,)
-    total_successful_cleans: jnp.ndarray  # scalar per step
-    total_apples_collected: jnp.ndarray   # scalar per step
+    # total_successful_cleans: jnp.ndarray  # scalar per step
+    # total_apples_collected: jnp.ndarray   # scalar per step
 
 
 def wandb_log_callback_safe(payload, current_step):
@@ -76,7 +77,18 @@ def train_jax(
 
         # jax.debug.print("actions shape = {s}", s=actions.shape)
 
-        world_state = jnp.concatenate(obs, axis=-1)[None, ...]
+        # world_state = jnp.concatenate(obs, axis=-1)[None, ...]
+        # obs: (N, H, W, C)
+        N, H, W, C = obs.shape
+
+        # Move N into channels: (H, W, C*N)
+        world_state = obs.transpose(1, 2, 0, 3).reshape(H, W, N * C)  # (7, 7, 57)
+        world_state = world_state[None, ...]  # (1, 7, 7, 57)
+
+        # jax.debug.print("obs shape: {s}", s=obs.shape)             # expect (3, 7, 7, 19)
+        # jax.debug.print("world_state shape: {s}", s=world_state.shape)  # expect (1, 7, 7, 57)
+
+
         if ALGO_NAME == "MAPPO":
             # Central critic
             if USE_LSTM:
@@ -158,8 +170,8 @@ def train_jax(
             done_flag = jnp.ones((obs.shape[0],), dtype=bool)
             transition = Transition(
                 obs=jnp.stack(obs),  # (T, N, H, W, C)
-                next_obs=jnp.stack(next_obs),  # (T, N, H, W, C)
-                world_state=jnp.stack(world_state),  # (T, H, W, C*N)
+                # next_obs=jnp.stack(next_obs),  # (T, N, H, W, C)
+                # world_state=jnp.stack(world_state),  # (T, H, W, C*N)
                 rewards=jnp.stack(reward),  # (T, N)
                 dones=jnp.stack(done_flag),  # (T, N)
                 values=jnp.stack(values),  # (T, N)
@@ -169,14 +181,15 @@ def train_jax(
                 # total_apples_collected=jnp.array([i.get('total_apples_collected', 0) for i in info])
                 # total_successful_cleans=total_successful_cleans+clean_count,
                 # total_apples_collected=total_apples_collected+apple_count,
-                total_successful_cleans=clean_count,
-                total_apples_collected=apple_count,
+                # total_successful_cleans=clean_count,
+                # total_apples_collected=apple_count,
             )
             # RANDOMIZE THE OBSERVATIONS IN THE TRANSITION TO PREVENT OVERFITTING TO SEQUENCES
-            rng, apple_rng, dirt_rng = jax.random.split(rng, 3)
-            RESET_APPLE_FRACTION = jax.random.uniform(apple_rng, minval=0.0, maxval=1.0)
-            RESET_DIRT_FRACTION = jax.random.uniform(dirt_rng, minval=0.0, maxval=1.0)
-            new_obs, new_env_state = env.reset(rng, reset_dirt_fraction=RESET_DIRT_FRACTION, reset_apple_fraction=RESET_APPLE_FRACTION)
+            rng, dirt_rng = jax.random.split(rng, 2)
+            # RESET_DIRT_FRACTION = jax.random.uniform(dirt_rng, minval=0.0, maxval=0.8)
+            sampled_dirt = jax.random.uniform(dirt_rng, minval=0.0, maxval=0.8)
+            jax.debug.print("episode reset with dirt = {d}", d=sampled_dirt)
+            new_obs, new_env_state = env.reset(rng, reset_dirt_fraction=sampled_dirt, reset_apple_fraction=0.0)
             # set the memory for lstm also to zeros here for both actor and critic
             if USE_LSTM:
                 actor_state = actor_state.replace(rnn_state=(jnp.zeros_like(actor_state.rnn_state[0]), jnp.zeros_like(actor_state.rnn_state[1])))
@@ -185,12 +198,12 @@ def train_jax(
 
         def not_done(operand):
             actor_state, critic_state, current_env_state, rng, obs, next_obs, world_state, reward, done_flag, values, actions, logp, info, running_total_successful_cleans, running_total_apples_collected = operand
-            done_flag = jnp.full((obs.shape[0],), done["__all__"])
+            done_flag = jnp.zeros((obs.shape[0],), dtype=bool)
 
             transition = Transition(
                 obs=jnp.stack(obs),  # (T, N, H, W, C)
-                next_obs=jnp.stack(next_obs),  # (T, N, H, W, C)
-                world_state=jnp.stack(world_state),  # (T, H, W, C*N)
+                # next_obs=jnp.stack(next_obs),  # (T, N, H, W, C)
+                # world_state=jnp.stack(world_state),  # (T, H, W, C*N)
                 rewards=jnp.stack(reward),  # (T, N)
                 dones=jnp.stack(done_flag),  # (T, N)
                 values=jnp.stack(values),  # (T, N)
@@ -198,8 +211,8 @@ def train_jax(
                 log_probs=jnp.stack(logp),  # (T, N)
                 # total_successful_cleans=total_successful_cleans+clean_count,
                 # total_apples_collected=total_apples_collected+apple_count,
-                total_successful_cleans=clean_count,
-                total_apples_collected=apple_count,
+                # total_successful_cleans=clean_count,
+                # total_apples_collected=apple_count,
             )
 
             obs = next_obs.copy()
@@ -209,8 +222,10 @@ def train_jax(
             return transition, actor_state, critic_state, obs, current_env_state, running_total_successful_cleans, running_total_apples_collected
             # return transition, obs
 
-        condition = (step % config["NUM_INNER_STEPS"] == 0)
+        condition = (step > 0) & (step % jnp.int32(config["NUM_INNER_STEPS"]) == 0)
         transition, actor_state, critic_state, obs, env_state, running_total_successful_cleans, running_total_apples_collected = jax.lax.cond(condition, if_done, not_done, operand)
+        step = step + jnp.int32(1)
+
 
 
         # if step % config["NUM_INNER_STEPS"] == 0:
@@ -242,7 +257,8 @@ def train_jax(
 
         #     obs = next_obs.copy()
 
-        step+=1
+        # THIS DONE NOT WORK IN JAX, IT IS A STATIC 
+        # step+=1
 
 
         # if done_flag[0]:  # Assuming all agents are done at the same time
@@ -288,10 +304,9 @@ def train_jax(
     
     rng, reset_rng = jax.random.split(rng)
     # RANDOMIZE THE OBSERVATIONS IN THE TRANSITION TO PREVENT OVERFITTING TO SEQUENCES
-    rng, apple_rng, dirt_rng = jax.random.split(rng, 3)
-    RESET_APPLE_FRACTION = jax.random.uniform(apple_rng, minval=0.0, maxval=1.0)
-    RESET_DIRT_FRACTION = jax.random.uniform(dirt_rng, minval=0.0, maxval=1.0)
-    obs, env_state = env.reset(reset_rng, reset_dirt_fraction=RESET_DIRT_FRACTION, reset_apple_fraction=RESET_APPLE_FRACTION)
+    rng, dirt_rng = jax.random.split(rng, 2)
+    initial_dirt_fraction = jax.random.uniform(dirt_rng, minval=0.0, maxval=0.8)
+    obs, env_state = env.reset(reset_rng, reset_dirt_fraction=initial_dirt_fraction, reset_apple_fraction=0.0)
 
     # (final_actor_state, final_critic_state, env_state, terminal_obs, rng, step), trajectory_rollout = jax.lax.scan(
     #     update_step,
@@ -299,6 +314,9 @@ def train_jax(
     #     None,
     #     num_steps//config["NUM_INNER_STEPS"],
     # )
+    print(f"Expected rollout memory: "
+      f"obs={BATCH_SIZE * NUM_AGENTS * 7 * 7 * 19 / 1e6:.1f} MB, "
+      f"world_state={BATCH_SIZE * 7 * 7 * 57 / 1e6:.1f} MB")
     (final_actor_state, final_critic_state, env_state, terminal_obs, rng, next_step, final_total_successful_cleans, final_total_apples_collected), trajectory_rollout = jax.lax.scan(
         env_step,
         (
@@ -307,7 +325,8 @@ def train_jax(
             env_state,
             obs,
             rng,
-            step,
+            jnp.int32(step),
+            # step,
             jnp.array(0.0, dtype=jnp.float32),
             jnp.array(0.0, dtype=jnp.float32),
         ),
@@ -320,7 +339,10 @@ def train_jax(
 
 
     if ALGO_NAME == "MAPPO":
-        world_state = jnp.concatenate(terminal_obs, axis=-1)[None, ...]  # (1, H, W, C*N)
+        N, H, W, C = terminal_obs.shape
+        world_state = terminal_obs.transpose(1, 2, 0, 3).reshape(H, W, N * C)
+        world_state = world_state[None, ...]
+
         # Central critic
         if USE_LSTM:
             last_values, _ = critic.apply(final_critic_state.params, world_state, final_critic_state.rnn_state)
@@ -338,7 +360,12 @@ def train_jax(
     advantages, targets = compute_gae(trajectory_rollout, last_values, config)
     # advantages, targets = compute_adv_no_gae(trajectory_rollout, last_values, config)
     # adv_std = jnp.maximum(advantages.std(), 1e-4) #1e-8, 0.05
-    normalized_advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+    # Per agent normalization of advantages 
+    # normalized_advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+    adv_mean = advantages.mean(axis=0, keepdims=True)   # (1, N) — mean over time per agent
+    adv_std = advantages.std(axis=0, keepdims=True)     # (1, N) — std over time per agent
+    normalized_advantages = (advantages - adv_mean) / (adv_std + 1e-8)
+
 
     # jax.debug.print(
     #     "trajectory rollout rwds length: {l}, advantages shape: {s}, targets shape: {t}",
@@ -391,7 +418,10 @@ def train_jax(
 
     def ppo_update(actor_state, critic_state, batch_rollout, batch_adv, batch_targets, config, actor, critic, ALGO_NAME):
         obs = batch_rollout.obs
-        world_state = batch_rollout.world_state
+        T, N, H, W, C = obs.shape
+        world_state = obs.transpose(0, 2, 3, 1, 4).reshape(T, H, W, N * C)
+        world_state = world_state[:, None, ...]
+        # world_state = batch_rollout.world_state
         actions = batch_rollout.actions
         logp_old = batch_rollout.log_probs
 
@@ -403,7 +433,7 @@ def train_jax(
         # logp_old_flat = logp_old.reshape((T * N,))
         # adv_flat = batch_adv.reshape((T * N,))
         # targets_flat = batch_targets.reshape((T * N,))
-        targets_global = batch_targets.mean(axis=1)
+        # targets_global = batch_targets.mean(axis=1)
         world_state_seq = world_state.squeeze(axis=1)
 
         def loss_fn(actor_params, critic_params):
@@ -457,12 +487,15 @@ def train_jax(
             if ALGO_NAME == "MAPPO":
 
                 def critic_step(rnn_state, world_state_t):
+                    # jax.debug.print("world_state_t shape: {s}", s=world_state_t.shape)  # expect (7, 7, 57)
                     if USE_LSTM:
                         values_t, new_rnn_state = critic.apply(critic_params, world_state_t[None, ...], rnn_state)
-                        return new_rnn_state, values_t.squeeze()
+                        values_t = jnp.repeat(values_t.squeeze(), NUM_AGENTS)
+                        return new_rnn_state, values_t
                     else:
                         values_t, _ = critic.apply(critic_params, world_state_t[None, ...])
-                        return None, values_t.squeeze()
+                        values_t = jnp.repeat(values_t.squeeze(), NUM_AGENTS) 
+                        return None, values_t
 
                 # OLD: _, values_t = jax.lax.scan(...)
                 if USE_LSTM:
@@ -477,7 +510,8 @@ def train_jax(
                         None,
                         world_state_seq
                     )
-                value_loss = jnp.mean((values_t - targets_global) ** 2)
+                # value_loss = jnp.mean((values_t - targets_global) ** 2)
+                value_loss = jnp.mean((values_t - batch_targets) ** 2)
             elif ALGO_NAME == "IPPO":
                 # OLD (non-sequence recurrent path):
                 # values, new_critic_rnn_state = critic.apply(critic_params, obs_flat, critic_state.rnn_state)
@@ -639,13 +673,22 @@ def train_jax(
 
 
     # traj.rewards shape: (T, N)
-    episode_returns = jnp.sum(trajectory_rollout.rewards, axis=0)   # (N,)
-    mean_episode_return = jnp.nanmean(episode_returns)
-    total_episode_return = jnp.nansum(episode_returns)
+    # episode_returns = jnp.sum(trajectory_rollout.rewards, axis=0)   # (N,)
+    # mean_episode_return = jnp.nanmean(episode_returns)
+    # # num_episodes = config["BATCH_SIZE"] // config["NUM_INNER_STEPS"]
+    # # mean_episode_return = jnp.sum(trajectory_rollout.rewards, axis=0) / num_episodes
+    # total_episode_return = jnp.nansum(episode_returns)
+
+    num_episodes = config["BATCH_SIZE"] // config["NUM_INNER_STEPS"]
+    batch_returns_per_agent = jnp.sum(trajectory_rollout.rewards, axis=0)        # (N,)
+    per_agent_episode_return = batch_returns_per_agent / num_episodes            # (N,)
+    mean_episode_return = jnp.nanmean(per_agent_episode_return)                  # scalar
+    total_episode_return = jnp.nansum(per_agent_episode_return)                  # scalar
+
     # Extract scalar info from trajectory
     additional_info_wandb = {
-        "total_successful_cleans": jnp.sum(trajectory_rollout.total_successful_cleans),
-        "total_apples_collected": jnp.sum(trajectory_rollout.total_apples_collected),
+        "total_successful_cleans": final_total_successful_cleans,
+        "total_apples_collected": final_total_apples_collected,
     }
 
     # Compute log payload and convert to Python scalars immediately
@@ -656,12 +699,12 @@ def train_jax(
         "train/mean_total_loss": float(jax.device_get(all_metrics["total_loss"].mean())),
         "train/mean_episode_return": float(jax.device_get(mean_episode_return)),
         "train/total_episode_return": float(jax.device_get(total_episode_return)),
-        **{f"train/agent_{i}_episode_return": float(jax.device_get(episode_returns[i])) for i in range(NUM_AGENTS)},
+        **{f"train/agent_{i}_episode_return": float(jax.device_get(per_agent_episode_return[i])) for i in range(NUM_AGENTS)},
         **{f"train/{k}": int(jax.device_get(v)) for k, v in additional_info_wandb.items()}
     }
 
     # Delete all large intermediate arrays BEFORE wandb callback
-    del trajectory_rollout, all_metrics, advantages, targets, normalized_advantages, episode_returns, mean_episode_return, total_episode_return, additional_info_wandb
+    del trajectory_rollout, all_metrics, advantages, targets, normalized_advantages, per_agent_episode_return, mean_episode_return, total_episode_return, additional_info_wandb
     import gc
     gc.collect()
     jax.effects_barrier()

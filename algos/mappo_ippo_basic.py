@@ -269,7 +269,7 @@ class IPPOActor(nn.Module):
 
             embedding = CNN(self.activation)(obs)
 
-            new_rnn_state, lstm_out = nn.LSTMCell(features=64)(rnn_state, embedding) 
+            new_rnn_state, lstm_out = nn.LSTMCell(features=128)(rnn_state, embedding) 
 
             x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
                         bias_init=constant(0.0))(lstm_out)
@@ -322,7 +322,7 @@ class IPPOCritic(nn.Module):
 
             embedding = CNN(self.activation)(obs)
 
-            new_rnn_state, lstm_out = nn.LSTMCell(features=64)(rnn_state, embedding) 
+            new_rnn_state, lstm_out = nn.LSTMCell(features=128)(rnn_state, embedding) 
 
             x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
                         bias_init=constant(0.0))(lstm_out)
@@ -376,7 +376,7 @@ class MAPPOActor(nn.Module):
 
             embedding = CNN(self.activation)(obs)
 
-            new_rnn_state, lstm_out = nn.LSTMCell(features=64)(rnn_state, embedding)    
+            new_rnn_state, lstm_out = nn.LSTMCell(features=128)(rnn_state, embedding)    
 
             x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
                         bias_init=constant(0.0))(lstm_out)
@@ -430,7 +430,7 @@ class MAPPOCritic(nn.Module):
 
             embedding = CNN(self.activation)(world_state)
 
-            new_rnn_state, lstm_out = nn.LSTMCell(features=64)(rnn_state, embedding)
+            new_rnn_state, lstm_out = nn.LSTMCell(features=128)(rnn_state, embedding)
 
             x_d1 = nn.Dense(128, kernel_init=orthogonal(jnp.sqrt(2)),
                         bias_init=constant(0.0))(lstm_out)

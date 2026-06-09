@@ -1,32 +1,39 @@
 import wandb
+import random
 #  All hyperparameters
 LOG_WANDB = True  
 
 # ENV SETTINGS
 NUM_AGENTS=3
 # GRID_SIZE = (18,25) #make it smaller (maybe half the size) for faster training
-NUM_INNER_STEPS=512 #256
-NUM_OUTER_STEPS=10240000 #10e4
-BATCH_SIZE = 51200
-EVAL_INTERVAL = 51200 # keep multiple of 256
-NUM_EVAL_STEPS = 512  # Number of steps during evaluation
-SAVE_CHECKPOINT_INTERVAL = 512000  # Save model checkpoint every n outer steps
+NUM_INNER_STEPS=1000 #256
+NUM_OUTER_STEPS=10000000 #10e4
+BATCH_SIZE = 10000 #51200
+EVAL_INTERVAL = 20000 #51200 # keep multiple of 256
+NUM_EVAL_STEPS = 1000  # Number of steps during evaluation
+SAVE_CHECKPOINT_INTERVAL = 500000  # Save model checkpoint every n outer steps
 SAVE_GIF = True
-SAVE_GIF_INTERVAL = 512000  # Save GIF every n outer steps
+SAVE_GIF_INTERVAL = 1000000 #500000 # Save GIF every n outer steps
 # EVAL_STEPS should be similar to steps in training episodes for consistency
 MAX_APPLE_GROWTH_RATE=0.3  # #deepmind paper- 0.03, human=0.067
 THRESHOLD_DEPLETION=0.32  # 0.4 #deepmind paper- 0.32, human=0.6
 THRESHOLD_RESTORATION=0.2 # 0.0 #deepmind paper- 0.0, human=0.3
 DIRT_SPAWN_PROBABILITY=0.5  # 0.5 #deepmind paper- 0.5, human=0.6
 DELAY_START_OF_DIRT_SPAWNING=50  # 50
-RUN_NAME = "share_clean_rwd_512_steps_random_init_eval_deterministic"  # "SHARED" or "INEQUITY_AVERSION" or "BASIC_ENV"
+RUN_NAME = "share_clean_rwd"  # "SHARED" or "INEQUITY_AVERSION" or "BASIC_ENV"
 SHARED_CLEANING_REWARDS = True  # True or False
 SHARED_REWARDS = False  # True or False
 INEQUITY_AVERSION = False  # True or False
 INEQUITY_AVERSION_TARGET_AGENTS = None  # None or list of agent indices
 
 OBS_SIZE = 7 #default is 11 for bigger env 
-RESET_DIRT_FRACTION = 1.0  # Fraction of dirt patches to reset at the end of each episode
+# randomize initial dirt 
+# random_number = np.random.randint(0, 9999)
+# print("random_number:", random_number)
+# rng = jax.random.PRNGKey(random_number)
+# rng, dirt_rng = jax.random.split(rng, 2)
+RESET_DIRT_FRACTION = random.uniform(0.0, 0.8)  # Randomize initial dirt fraction between 0 and 0.8
+# RESET_DIRT_FRACTION = 0.8  # Fraction of dirt patches to reset at the end of each episode
 RESET_APPLE_FRACTION = 0  # Fraction of apple patches to reset at the end of each episode
 
 # Algo settings
@@ -41,16 +48,16 @@ CRITIC_LR = 1e-3
 GAMMA = 0.995           # Discount factor
 GAE_LAMBDA = 0.95      # Lambda for Generalized Advantage Estimation
 CLIP_EPS = 0.1         # PPO clipping epsilon
-NUM_EPOCHS = 4         # Number of epochs to train on a batch
-MINIBATCH_SIZE = 128    # Number of minibatches to split a batch into 
+NUM_EPOCHS = 2         # Number of epochs to train on a batch
+MINIBATCH_SIZE = 250  # size of minibatches for PPO updates (should divide BATCH_SIZE) 
 # ENT_COEF_START = 0.9        # Entropy coefficient
 # ENT_COEF_END = 0.02        # Entropy coefficient
-ENT_COEF = 0.01
+ENT_COEF = 0.05
 VF_COEF = 0.25          # Value function coefficient
 
 # OTHER
 # SAVE_DIR = f"{ALGO_NAME+ENCODER}_gif/a{NUM_AGENTS}_i{NUM_INNER_STEPS}_o{NUM_OUTER_STEPS}_dep{THRESHOLD_DEPLETION}_res{THRESHOLD_RESTORATION}_dsp{DIRT_SPAWN_PROBABILITY}_dsds{DELAY_START_OF_DIRT_SPAWNING}_rs{REWARD_STRUCTURE}"
-SAVE_DIR = f"{ALGO_NAME+ENCODER}_gif/a{NUM_AGENTS}_i{NUM_INNER_STEPS}_rs{RUN_NAME}"
+SAVE_DIR = f"{ALGO_NAME+ENCODER}_gif/a{NUM_AGENTS}_rs{RUN_NAME}"
 
 USE_CHECKPOINTS = False
 LOAD_DIR = f"{SAVE_DIR}/checkpoint_step_{NUM_OUTER_STEPS}.pkl"
